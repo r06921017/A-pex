@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>README.html</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+
+</head>
+
+<body>
+
+<h1 id="apex">A*pex</h1>
+<p>C++ implementations of bi- or multi- objective search algorithms like BOA*, PPA* and A*pex.</p>
+<p>You can compile the project using the following commands:</p>
+<pre class="shell"><code>cmake .
+make</code></pre>
+<p>After typing the above commands. Cmake will generate <code>multiobj</code> in the <code>bin</code> folder. You can type <code>multiobj --help</code> to see the expected input arguments.</p>
+<p>Example usage:</p>
+<pre class="shell"><code># find the Pareto-optimal frontier from node 20002 to node 164983 in the BAY map.
+./bin/multiobj -m resources/dataset/USA-road-d.BAY.gr resources/dataset/USA-road-t.BAY.gr -s 20002 -g 164983 -a Apex -o output.txt</code></pre>
+<p>You can download the dataset from <a href="http://users.diag.uniroma1.it/challenge9/download.shtml">here</a>.</p>
+
+</body>
+</html>
