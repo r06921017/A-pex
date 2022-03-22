@@ -19,4 +19,5 @@ Example usage:
 ./bin/multiobj -m resources/dataset/USA-road-d.BAY.gr resources/dataset/USA-road-t.BAY.gr -s 20002 -g 164983 -a Apex -o output.txt
 ```
 
-You can download the dataset from [here]( http://users.diag.uniroma1.it/challenge9/download.shtml).
+You can download the road networks we used in the paper from [here]( http://users.diag.uniroma1.it/challenge9/download.shtml).
+Files for the added third objectives and the testing cases used in our paper could be found [here](https://drive.google.com/drive/folders/10o91HGS6KCtbndX23vn1-gL7a_2aWxHt?usp=sharing).
