@@ -1,9 +1,9 @@
 project (Multi_objective_search)
 
 
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 3.7.1)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_COMPILER "/usr/bin/g++")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 SET (CMAKE_LINKER  "/usr/bin/ld")

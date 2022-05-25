@@ -79,17 +79,44 @@ using ApexPathSolutionSet = std::vector<ApexPathPairPtr>;
 
 using EPS = std::vector<double>;
 
+// TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
-    size_t          id;
-    std::vector<size_t>    g;
-    std::vector<size_t>    h;
-    std::vector<size_t>    f;
-    NodePtr         parent;
+    size_t id;
+    std::vector<size_t> g;
+    std::vector<size_t> g_b;
+    std::vector<size_t> h;
+    std::vector<size_t> h_b;
+    std::vector<size_t> f;
+    std::vector<size_t> f_b;
+    NodePtr parent;
+    NodePtr parent_b;
 
-    Node(size_t id, std::vector<size_t> g, std::vector<size_t> h, NodePtr parent=nullptr)
-        : id(id), g(g), h(h), f(g.size()), parent(parent) {
-        for (int i = 0; i < g.size(); i++){
+    Node (size_t id, std::vector<size_t> g, std::vector<size_t> h, NodePtr parent=nullptr, 
+        bool is_forward=true) : id(id), f(g.size()), f_b(g.size()) {
+        if (is_forward) {
+            g = g;
+            h = h;
+            parent = parent;
+            for (size_t i = 0; i < g.size(); i++) {
+                f[i] = g[i] + h[i];
+            }
+        } else {
+            g_b = g;
+            h_b = h;
+            parent_b = parent;
+            for (size_t i = 0; i < g.size(); i++) {
+                f_b[i] = g_b[i] + h_b[i];
+            }
+        }
+    };
+
+    Node (size_t id, std::vector<size_t> g, std::vector<size_t> g_b, std::vector<size_t> h, 
+        std::vector<size_t> h_b, NodePtr parent=nullptr, NodePtr parent_b=nullptr) : 
+        id(id), g(g), g_b(g_b), h(h), h_b(h_b), f(g.size()), f_b(g.size()), 
+        parent(parent), parent_b(parent_b) {
+        for (size_t i = 0; i < g.size(); i++) {
             f[i] = g[i] + h[i];
+            f_b[i] = g_b[i] + h_b[i];
         }
     };
 
@@ -109,6 +136,10 @@ struct Node {
 
 
     struct more_than_full_cost {
+        bool operator()(const NodePtr &a, const NodePtr &b) const;
+    };
+
+    struct more_than_full_cost_b {
         bool operator()(const NodePtr &a, const NodePtr &b) const;
     };
 
@@ -161,16 +192,15 @@ struct PathPair {
 enum MergeStrategy {SMALLER_G2, RANDOM, MORE_SLACK, SMALLER_G2_FIRST, REVERSE_LEX};
 
 struct ApexPathPair {
-    size_t      id; // state of the node
-    NodePtr     apex;
-    NodePtr     path_node;
-    NodePtr     parent;
-    bool        is_active=true;
-
+    size_t id; // state of the node
+    NodePtr apex;
+    NodePtr path_node;
+    NodePtr parent;
     Heuristic& h;
+    bool is_active=true;
 
     ApexPathPair(const NodePtr &apex, const NodePtr &path_node, Heuristic& h)
-        : apex(apex), path_node(path_node) , parent(path_node->parent), h(h), id(apex->id){};
+        : id(apex->id), apex(apex), path_node(path_node) , parent(path_node->parent), h(h) {};
 
     ApexPathPair(const ApexPathPairPtr parent, const Edge& egde);
 

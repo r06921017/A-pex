@@ -10,10 +10,11 @@ ShortestPathHeuristic::ShortestPathHeuristic(size_t source, size_t graph_size, c
     size_t num_of_objectives = adj_matrix.get_num_of_objectives();
     size_t i = 0;
     for (auto node_iter = this->all_nodes.begin(); node_iter != this->all_nodes.end(); node_iter++) {
-        *node_iter = std::make_shared<Node>(i++, std::vector<size_t>(num_of_objectives, 0), std::vector<size_t>(num_of_objectives, MAX_COST));
- }
+        *node_iter = std::make_shared<Node>(i++, std::vector<size_t>(num_of_objectives, 0), 
+            std::vector<size_t>(num_of_objectives, MAX_COST));
+    }
 
-    for (int j=0; j < num_of_objectives; j ++){
+    for (size_t j=0; j < num_of_objectives; j ++){
         compute(j, adj_matrix);
     }
 }

@@ -4,7 +4,7 @@
 #include "Utils/Definitions.h"
 
 bool is_bounded(NodePtr apex, NodePtr node){
-  for (int i = 0; i < apex->f.size(); i ++ ){
+  for (size_t i = 0; i < apex->f.size(); i ++ ){
     if (node->f[i] > apex->f[i]){
       return false;
     }
@@ -91,12 +91,21 @@ bool Node::more_than_combined_heurisitic::operator()(const NodePtr &a, const Nod
 
 
 bool Node::more_than_full_cost::operator()(const NodePtr &a, const NodePtr &b) const {
-  for (int i = 0; i + 1 < a->f.size(); i++){
+  for (int i = 0; i + 1 < (int)a->f.size(); i++){
     if (a->f[i] != b->f[i]) {
       return (a->f[i] > b->f[i]);
     }
   }
   return (a->f.back() > b->f.back());
+}
+
+bool Node::more_than_full_cost_b::operator()(const NodePtr &a, const NodePtr &b) const {
+  for (int i = 0; i + 1 < (int)a->f.size(); i++){
+    if (a->f_b[i] != b->f_b[i]) {
+      return (a->f_b[i] > b->f_b[i]);
+    }
+  }
+  return (a->f_b.back() > b->f_b.back());
 }
 
 bool Node::more_than_lex::operator()(const NodePtr &a, const NodePtr &b) const {

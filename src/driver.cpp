@@ -30,11 +30,13 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     // Compute heuristic
     std::cout << "Start Computing Heuristic" << std::endl;
     ShortestPathHeuristic sp_heuristic(target, graph_size, inv_graph);
+    ShortestPathHeuristic sp_heuristic_b(source, graph_size, inv_graph);
     // sp_heuristic.set_all_to_zero();
     std::cout << "Finish Computing Heuristic\n" << std::endl;
 
     using std::placeholders::_1;
     Heuristic heuristic = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic, _1);
+    Heuristic heuristic_b = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic_b, _1);
 
     SolutionSet solutions;
     int num_exp, num_gen;
