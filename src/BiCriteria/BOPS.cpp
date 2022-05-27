@@ -2,12 +2,12 @@
 #include <algorithm>
 #include <time.h>
 
-#include "BOZStar.h"
+#include "BOPS.h"
 
-BOZStar::BOZStar(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger, int lh_f, int lh_b) :
-    BOAStar(adj_matrix, eps, logger), lookahead_f(lh_f), lookahead_b(lh_b) {}
+BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger, size_t lh_f,
+    size_t lh_b) : BOAStar(adj_matrix, eps, logger), lookahead_f(lh_f), lookahead_b(lh_b) {}
 
-void BOZStar::operator() (size_t source, size_t target, Heuristic &heuristic, 
+void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, 
     Heuristic &heuristic_b, SolutionSet & solutions, AdjacencyMatrix& graph, size_t graph_size, 
     unsigned int time_limit) {
 
@@ -146,13 +146,13 @@ void BOZStar::operator() (size_t source, size_t target, Heuristic &heuristic,
             num_generation_b +=1;
 
             // Dominance check
-            if ((((1+this->eps[1])*node_b->f_b[1]) >= min_g2_b[source]) ||
-                (node_b->g_b[1] >= min_g2_b[node_b->id])) {
+            if ((((1+this->eps[1])*node_b->f[1]) >= min_g2_b[source]) ||
+                (node_b->g[1] >= min_g2_b[node_b->id])) {
                 closed_b.push_back(node_b);
                 continue;
             }
 
-            min_g2_b[node_b->id] = node_b->g_b[1];
+            min_g2_b[node_b->id] = node_b->g[1];
             num_expansion += 1;
 
             // Find one solution during the search
@@ -190,35 +190,30 @@ void BOZStar::operator() (size_t source, size_t target, Heuristic &heuristic,
     }
 }
 
-void BOZStar::update_node(NodePtr node, size_t target, bool is_fw, std::vector<NodePtr>& cur_list,
+void BOPS::update_node(NodePtr node, size_t target, std::vector<NodePtr>& cur_list,
     const std::vector<NodePtr>& open, SolutionSet &solutions, const Heuristic& heuristic_f) {
     for (const auto& other_node : open) {
         // Initialize a new node representing a solution
         std::vector<size_t> tmp_gf(node->g.size());
         std::vector<size_t> tmp_gb(node->g.size());
-        NodePtr parent_f;
-        NodePtr parent_b;
+        NodePtr forward_node;
+        NodePtr backward_node;
 
-        if (is_fw) {
-            parent_f = node->parent;
-            parent_b = other_node->parent_b;
-            for (size_t i = 0; i < tmp_gf.size(); i++) {
-                tmp_gf[i] = node->g[i];
-                tmp_gb[i] = other_node->g_b[i];
-            }
+        if (node->is_forward) {
+            forward_node = node;
+            tmp_gf = node->g;
+            backward_node = other_node;
+            tmp_gb = other_node->g;
         } else {
-            parent_f = other_node->parent;
-            parent_b = node->parent_b;
-            for (size_t i = 0; i < tmp_gf.size(); i++) {
-                tmp_gb[i] = node->g_b[i];
-                tmp_gf[i] = other_node->g[i];
-            }
+            forward_node = other_node;
+            tmp_gf = other_node->g;
+            backward_node = node;
+            tmp_gb = node->g;
         }
 
-        if (node->id == other_node->id) {  // This is a solution
-            NodePtr cand_sol = std::make_shared<Node>(target, tmp_gf, tmp_gb, tmp_gb, tmp_gf, 
-                parent_f, parent_b);
-
+        if (forward_node->id == backward_node->id) {  // This is a solution
+            // only for evaluation
+            NodePtr cand_sol = std::make_shared<Node>(forward_node->id, tmp_gf, tmp_gb);
             bool need_to_add = true;
             std::vector<NodePtr>::iterator it = solutions.begin();
             while (it != solutions.end()) {
@@ -232,23 +227,20 @@ void BOZStar::update_node(NodePtr node, size_t target, bool is_fw, std::vector<N
                 }
             }
             if (need_to_add) {
+
                 solutions.push_back(cand_sol);
             }
         } else {
             // We can update the heuristic of this node
             // Get the front to front heuristic (f2f_h)
-            // TODO: A more accurate and fast heuristic coomputation function is needed
-            std::vector<size_t> pseudo_h(node->g.size(), 0);
-            std::vector<size_t> tmp_f(node->g.size());
-            for (size_t i = 0; i < node->g.size(); i++) {
-                tmp_f[i] = tmp_gf[i] + tmp_gb[i] + all_pair_path_lbs[node->id][other_node->id][i];
-            }
-            NodePtr tmp_node = std::make_shared<Node>(target, tmp_f, pseudo_h);
+            std::vector<size_t> tmp_h(node->g.size(), 0);
+            tmp_h += (tmp_gf + tmp_gb + all_pair_path_lbs[forward_node->id][backward_node->id]);
+            NodePtr next = std::make_shared<Node>(node->id, node->g, tmp_h, node, node->is_forward);
 
             // Check if this lower bound is dominated by the solution
             bool can_skip = false;
             for (const auto& sol : solutions) {
-                if (is_dominated_dr(tmp_node, sol)) {
+                if (is_dominated_dr(next, sol)) {
                     can_skip = true;
                     break;
                 }

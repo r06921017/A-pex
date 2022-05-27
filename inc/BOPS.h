@@ -8,10 +8,10 @@
 #include "BOAStar.h"
 #include "ShortestPathHeuristic.h"
 
-class BOZStar: public BOAStar {
+class BOPS: public BOAStar {
 private:
-    int lookahead_f;
-    int lookahead_b;
+    size_t lookahead_f;
+    size_t lookahead_b;
     std::vector<std::vector<std::vector<size_t>>> all_pair_path_lbs;
 
 protected:
@@ -36,18 +36,18 @@ protected:
     // is_fw: whether the node is from forward or backward searches
     // cur_list: the list for putting the nodes from the current side
     // open: the open list from the opposite side
-    void update_node(NodePtr node, size_t target, bool is_fw, std::vector<NodePtr>& cur_list,
+    void update_node(NodePtr node, size_t target, std::vector<NodePtr>& cur_list,
         const std::vector<NodePtr>& open, SolutionSet &solutions, const Heuristic& heuristic_f);
 
 public:
     virtual std::string get_solver_name() {return "BOZ*"; }
-    inline int get_look_forward(void) {return lookahead_f;}
-    inline int get_look_backward(void) {return lookahead_b;}
-    inline void set_look_forward(int val) {lookahead_f = val;}
-    inline void set_look_backward(int val) {lookahead_b = val;}
+    inline size_t get_look_forward(void) {return lookahead_f;}
+    inline size_t get_look_backward(void) {return lookahead_b;}
+    inline void set_look_forward(size_t val) {lookahead_f = val;}
+    inline void set_look_backward(size_t val) {lookahead_b = val;}
 
-    BOZStar(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger=nullptr, 
-        int lh_f=INT_MAX, int lh_b=INT_MAX);
+    BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger=nullptr, 
+        size_t lh_f=SIZE_MAX, size_t lh_b=SIZE_MAX);
 
     void operator()(size_t source, size_t target, Heuristic &heuristic, Heuristic &heuristic_b,
         SolutionSet &solutions, AdjacencyMatrix& graph, size_t graph_size, unsigned int time_limit=UINT_MAX);

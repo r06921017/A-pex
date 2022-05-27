@@ -4,14 +4,20 @@
 #include "Utils/Definitions.h"
 
 bool is_bounded(NodePtr apex, NodePtr node){
-  for (size_t i = 0; i < apex->f.size(); i ++ ){
-    if (node->f[i] > apex->f[i]){
-      return false;
+    for (size_t i = 0; i < apex->f.size(); i ++ ){
+        if (node->f[i] > apex->f[i]){
+            return false;
+        }
     }
-  }
-  return true;
+    return true;
 }
 
+NodePtr getSource(NodePtr node) {
+    while (node->parent != nullptr) {
+        node = node->parent;
+    }
+    return node;
+}
 
 AdjacencyMatrix::AdjacencyMatrix(size_t graph_size, std::vector<Edge> &edges, bool inverse)
     : matrix((graph_size+1), std::vector<Edge>()), graph_size(graph_size) {
@@ -86,55 +92,55 @@ bool Node::more_than_specific_heurisitic_cost::operator()(const NodePtr &a, cons
 }
 
 bool Node::more_than_combined_heurisitic::operator()(const NodePtr &a, const NodePtr &b) const {
-  return (a->g[0] + this->factor * a->g[1] > b->g[0] + this->factor * b->g[1]);
+    return (a->g[0] + this->factor * a->g[1] > b->g[0] + this->factor * b->g[1]);
 }
 
 
 bool Node::more_than_full_cost::operator()(const NodePtr &a, const NodePtr &b) const {
-  for (int i = 0; i + 1 < (int)a->f.size(); i++){
-    if (a->f[i] != b->f[i]) {
-      return (a->f[i] > b->f[i]);
+    for (int i = 0; i + 1 < (int)a->f.size(); i++){
+        if (a->f[i] != b->f[i]) {
+            return (a->f[i] > b->f[i]);
+        }
     }
-  }
-  return (a->f.back() > b->f.back());
+    return (a->f.back() > b->f.back());
 }
 
-bool Node::more_than_full_cost_b::operator()(const NodePtr &a, const NodePtr &b) const {
-  for (int i = 0; i + 1 < (int)a->f.size(); i++){
-    if (a->f_b[i] != b->f_b[i]) {
-      return (a->f_b[i] > b->f_b[i]);
-    }
-  }
-  return (a->f_b.back() > b->f_b.back());
-}
+// bool Node::more_than_full_cost_b::operator()(const NodePtr &a, const NodePtr &b) const {
+//   for (int i = 0; i + 1 < (int)a->f.size(); i++){
+//     if (a->f_b[i] != b->f_b[i]) {
+//       return (a->f_b[i] > b->f_b[i]);
+//     }
+//   }
+//   return (a->f_b.back() > b->f_b.back());
+// }
 
 bool Node::more_than_lex::operator()(const NodePtr &a, const NodePtr &b) const {
-  if (order == Node::LEX_ORDER::LEX0){
-    if (a->f[0] != b->f[0]) {
-      return (a->f[0] > b->f[0]);
-    } else {
-      return (a->f[1] > b->f[1]);
+    if (order == Node::LEX_ORDER::LEX0){
+        if (a->f[0] != b->f[0]) {
+            return (a->f[0] > b->f[0]);
+        } else {
+            return (a->f[1] > b->f[1]);
+        }
+    }else{
+        if (a->f[1] != b->f[1]) {
+            return (a->f[1] > b->f[1]);
+        } else {
+            return (a->f[0] > b->f[0]);
+        }
     }
-  }else{
-      if (a->f[1] != b->f[1]) {
-        return (a->f[1] > b->f[1]);
-    } else {
-        return (a->f[0] > b->f[0]);
-    }
-  }
 }
 
 
 std::ostream& operator <<(std::ostream &stream, const std::vector<size_t> &vec){
-  stream << "[";
-  for (size_t i = 0 ;  i < vec.size(); i ++){
-    stream << vec[i];
-    if (i + 1 <vec.size()){
-      stream << ", ";
+    stream << "[";
+    for (size_t i = 0 ;  i < vec.size(); i ++){
+        stream << vec[i];
+        if (i + 1 <vec.size()){
+            stream << ", ";
+        }
     }
-  }
-  stream << "]";
-  return stream;
+    stream << "]";
+    return stream;
 }
 
 std::ostream& operator<<(std::ostream &stream, const Node &node) {

@@ -31,6 +31,21 @@ std::ostream& operator<<(std::ostream &stream, const Pair<T> pair) {
     return stream;
 }
 
+template<typename T>
+std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
+    assert(a.size() == b.szie());
+    std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(a), std::plus<T>());
+    return a;
+}
+
+template<typename T>
+std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
+    assert(a.size() == b.szie());
+    std::vector<T> output;
+    output.reserve(a.size());
+    std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(output), std::plus<T>());
+    return output;
+}
 
 using Heuristic = std::function<std::vector<size_t>(size_t)>;
 
@@ -83,40 +98,17 @@ using EPS = std::vector<double>;
 struct Node {
     size_t id;
     std::vector<size_t> g;
-    std::vector<size_t> g_b;
     std::vector<size_t> h;
-    std::vector<size_t> h_b;
     std::vector<size_t> f;
-    std::vector<size_t> f_b;
     NodePtr parent;
-    NodePtr parent_b;
+    NodePtr parent2;  // the parent from the other node, used only when we find a solution
+    bool is_forward = true;
 
     Node (size_t id, std::vector<size_t> g, std::vector<size_t> h, NodePtr parent=nullptr, 
-        bool is_forward=true) : id(id), f(g.size()), f_b(g.size()) {
-        if (is_forward) {
-            g = g;
-            h = h;
-            parent = parent;
-            for (size_t i = 0; i < g.size(); i++) {
-                f[i] = g[i] + h[i];
-            }
-        } else {
-            g_b = g;
-            h_b = h;
-            parent_b = parent;
-            for (size_t i = 0; i < g.size(); i++) {
-                f_b[i] = g_b[i] + h_b[i];
-            }
-        }
-    };
-
-    Node (size_t id, std::vector<size_t> g, std::vector<size_t> g_b, std::vector<size_t> h, 
-        std::vector<size_t> h_b, NodePtr parent=nullptr, NodePtr parent_b=nullptr) : 
-        id(id), g(g), g_b(g_b), h(h), h_b(h_b), f(g.size()), f_b(g.size()), 
-        parent(parent), parent_b(parent_b) {
+        bool is_forward=true, NodePtr parent2=nullptr) : 
+        id(id), g(g), h(h), f(g.size()), parent(parent), is_forward(is_forward), parent2(parent2) {
         for (size_t i = 0; i < g.size(); i++) {
-            f[i] = g[i] + h[i];
-            f_b[i] = g_b[i] + h_b[i];
+                f[i] = g[i] + h[i];
         }
     };
 
@@ -183,7 +175,7 @@ struct PathPair {
 
 
     struct more_than_full_cost {
- bool operator()(const PathPairPtr &a, const PathPairPtr &b) const;
+        bool operator()(const PathPairPtr &a, const PathPairPtr &b) const;
     };
 
     friend std::ostream& operator<<(std::ostream &stream, const PathPair &pp);
@@ -222,7 +214,7 @@ bool is_bounded(NodePtr apex, NodePtr node,  const EPS eps);
 bool is_bounded(NodePtr apex, NodePtr node);
 bool is_dominated_dr(NodePtr apex, NodePtr node);
 bool is_dominated_dr(NodePtr apex, NodePtr node, const EPS eps);
-
+NodePtr getSource(NodePtr node);
 
 
 class Interval{
