@@ -7,9 +7,8 @@
 BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger, size_t lh_f,
     size_t lh_b) : BOAStar(adj_matrix, eps, logger), lookahead_f(lh_f), lookahead_b(lh_b) {}
 
-void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, 
-    Heuristic &heuristic_b, SolutionSet & solutions, AdjacencyMatrix& graph, size_t graph_size, 
-    unsigned int time_limit) {
+void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions, 
+    AdjacencyMatrix& graph, size_t graph_size, unsigned int time_limit) {
 
     // Get the all pair shortest path heuristic, which is a set of vectors
     all_pair_lbs = std::vector<std::vector<std::vector<size_t>>>(graph_size);
@@ -47,12 +46,12 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic,
     std::vector<NodePtr> open_b;
     std::make_heap(open_b.begin(), open_b.end(), more_than);
 
-    node_f = std::make_shared<Node>(source, std::vector<size_t>(2,0), heuristic(source));
+    node_f = std::make_shared<Node>(source, std::vector<size_t>(2,0), all_pair_lbs[source][target]);
     node_f->set_path();
     open_f.push_back(node_f);
     std::push_heap(open_f.begin(), open_f.end(), more_than);
 
-    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), heuristic_b(target));
+    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), all_pair_lbs[target][source]);
     node_f->set_path();
     open_b.push_back(node_b);
     std::push_heap(open_b.begin(), open_b.end(), more_than);
@@ -105,7 +104,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic,
                 size_t next_id = p_edge->target;
                 std::vector<size_t> next_g = {node_f->g[0]+p_edge->cost[0], 
                     node_f->g[1]+p_edge->cost[1]};
-                std::vector<size_t> next_h = heuristic(next_id);
+                std::vector<size_t> next_h = all_pair_lbs[next_id][target];
 
                 // Dominance check
                 if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_f[target]) ||
@@ -174,7 +173,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic,
                 size_t next_id = p_edge->target;
                 std::vector<size_t> next_g = {node_f->g[0]+p_edge->cost[0], 
                     node_f->g[1]+p_edge->cost[1]};
-                std::vector<size_t> next_h = heuristic(next_id);
+                std::vector<size_t> next_h = all_pair_lbs[next_id][source];
 
                 // Dominance check
                 if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_f[target]) ||

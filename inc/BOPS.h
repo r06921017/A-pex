@@ -54,8 +54,8 @@ public:
     BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger=nullptr, 
         size_t lh_f=SIZE_MAX, size_t lh_b=SIZE_MAX);
 
-    void operator()(size_t source, size_t target, Heuristic &heuristic, Heuristic &heuristic_b,
-        SolutionSet &solutions, AdjacencyMatrix& graph, size_t graph_size, unsigned int time_limit=UINT_MAX);
+    void operator()(size_t source, size_t target, SolutionSet &solutions, AdjacencyMatrix& graph, 
+        size_t graph_size, unsigned int time_limit=UINT_MAX);
 
     std::vector<std::pair<std::clock_t, NodePtr>> get_sol_log(){return solution_log;}
 };

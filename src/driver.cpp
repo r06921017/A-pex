@@ -40,41 +40,54 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     SolutionSet solutions;
     int num_exp, num_gen;
     auto runtime = std::clock();
+    auto start =std::clock();
 
-    std::unique_ptr<AbstractSolver> solver;
-    if (algorithm == "PPA"){
-        Pair<double> eps_pair({eps, eps});
-        solver = std::make_unique<PPA>(graph, eps_pair, logger);
-    }else if (algorithm == "BOA"){
-        Pair<double> eps_pair({eps, eps});
-        solver = std::make_unique<BOAStar>(graph, eps_pair, logger);
-    }else if (algorithm == "NAMOAdr"){
-        EPS eps_vec (graph.get_num_of_objectives(), eps);
-        solver = std::make_unique<NAMOAdr>(graph, eps_vec, logger);
-        // ((ApexSearch*)solver.get())->set_merge_strategy(ms);
-    }else if (algorithm == "Apex"){
-        EPS eps_vec (graph.get_num_of_objectives(), eps);
-        solver = std::make_unique<ApexSearch>(graph, eps_vec, logger);
-        ((ApexSearch*)solver.get())->set_merge_strategy(ms);
-    }else if (algorithm == "BOPS"){
+    if (algorithm == "BOPS") {
+        std::unique_ptr<BOPS> solver;
         Pair<double> eps_pair({eps, eps});
         solver = std::make_unique<BOPS>(graph, eps_pair, logger);
-    }else{
-        std::cerr << "unknown solver name" << std::endl;
-        exit(-1);
-    }
-    auto start =std::clock();
-    (*solver)(source, target, heuristic, solutions, time_limit);
-    runtime = std::clock() - start;
+        (*solver)(source, target, solutions, graph, graph_size, time_limit);
+        runtime = std::clock() - start;
 
-    std::cout << "Node expansion: " << solver->get_num_expansion() << std::endl;
-    std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
-    num_exp = solver->get_num_expansion();
-    num_gen = solver->get_num_generation();
-    for (auto sol: solutions){
-        std::cout << *sol << std::endl;
-    }
+        std::cout << "Node expansion: " << solver->get_num_expansion() << std::endl;
+        std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
+        num_exp = solver->get_num_expansion();
+        num_gen = solver->get_num_generation();
+        for (auto sol: solutions){
+            std::cout << *sol << std::endl;
+        }
+    } else {
+        std::unique_ptr<AbstractSolver> solver;
+        if (algorithm == "PPA"){
+            Pair<double> eps_pair({eps, eps});
+            solver = std::make_unique<PPA>(graph, eps_pair, logger);
+        }else if (algorithm == "BOA"){
+            Pair<double> eps_pair({eps, eps});
+            solver = std::make_unique<BOAStar>(graph, eps_pair, logger);
+        }else if (algorithm == "NAMOAdr"){
+            EPS eps_vec (graph.get_num_of_objectives(), eps);
+            solver = std::make_unique<NAMOAdr>(graph, eps_vec, logger);
+            // ((ApexSearch*)solver.get())->set_merge_strategy(ms);
+        }else if (algorithm == "Apex"){
+            EPS eps_vec (graph.get_num_of_objectives(), eps);
+            solver = std::make_unique<ApexSearch>(graph, eps_vec, logger);
+            ((ApexSearch*)solver.get())->set_merge_strategy(ms);
+        }else{
+            std::cerr << "unknown solver name" << std::endl;
+            exit(-1);
+        }
 
+        (*solver)(source, target, heuristic, solutions, time_limit);
+        runtime = std::clock() - start;
+
+        std::cout << "Node expansion: " << solver->get_num_expansion() << std::endl;
+        std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
+        num_exp = solver->get_num_expansion();
+        num_gen = solver->get_num_generation();
+        for (auto sol: solutions){
+            std::cout << *sol << std::endl;
+        }
+    }
 
     output << algorithm << "-" << alg_variant << " (" << eps << ")" << "\t"
            << source << "\t" << target << "\t"
