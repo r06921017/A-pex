@@ -21,6 +21,15 @@ bool is_dominated_dr(NodePtr apex, NodePtr node, const EPS eps){
   return true;
 }
 
+// return true if vector b dominates a
+bool is_dominated_dr(const vector<size_t>& a, const vector<size_t>& b) {
+  for (int i = 1; i < a.size(); i ++) {
+    if (b[i] > a[i]){
+      return false;
+    }
+  }
+  return true;
+}
 
 bool is_bounded(NodePtr apex, NodePtr node,  const EPS eps){
   for (int i = 0; i < apex->f.size(); i ++ ){

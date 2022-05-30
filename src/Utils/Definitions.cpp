@@ -3,6 +3,38 @@
 #include <string>
 #include "Utils/Definitions.h"
 
+list<PathGvalPair> get_paths(const vector<NodePtr>& in_open) {
+    list<PathGvalPair> out_paths;
+    for (const auto& n : in_open) {
+        PathGvalPair p = make_pair(n->path, n->g);
+        if (find(out_paths.begin(), out_paths.end(), p) == out_paths.end()) {
+            out_paths.push_back(p);
+        }
+    }
+    return out_paths;
+}
+
+PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target) {
+    PathGvalPair out_pair;
+
+    assert(a.first.front() == target || b.first.front() == target);
+    if (b.first.front() == target) {  // update the path
+        out_pair.first = a.first;
+        for (list<size_t>::const_reverse_iterator rit = b.first.rbegin(); rit != b.first.rend(); ++rit) {
+            out_pair.first.push_back(*rit);
+        }
+    } else {
+        assert(a.first.front() == target);
+        out_pair.first = b.first;
+        for (list<size_t>::const_reverse_iterator rit = a.first.rbegin(); rit != a.first.rend(); ++rit) {
+            out_pair.first.push_back(*rit);
+        }
+    }
+    out_pair.second = a.second + b.second;  // sum the g vals
+    assert(out_pair.first.back() == target);
+    return out_pair;
+}
+
 bool is_bounded(NodePtr apex, NodePtr node){
     for (size_t i = 0; i < apex->f.size(); i ++ ){
         if (node->f[i] > apex->f[i]){

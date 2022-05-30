@@ -12,7 +12,7 @@ class BOPS: public BOAStar {
 private:
     size_t lookahead_f;
     size_t lookahead_b;
-    std::vector<std::vector<std::vector<size_t>>> all_pair_path_lbs;
+    std::vector<std::vector<std::vector<size_t>>> all_pair_lbs;
 
 protected:
     std::clock_t start_time;
@@ -22,6 +22,8 @@ protected:
     size_t num_generation_f = 0;
     size_t num_expansion_b = 0;
     size_t num_generation_b = 0;
+    size_t num_better_sol = 0;
+    size_t num_redundent_sol = 0;
 
     void init_search(void) {
         num_expansion = 0;
@@ -31,16 +33,19 @@ protected:
         num_generation = 0;
         num_generation_f = 0;
         num_generation_b = 0;
+
+        num_better_sol = 0;
+        num_redundent_sol = 0;
     }
 
     // is_fw: whether the node is from forward or backward searches
     // cur_list: the list for putting the nodes from the current side
     // open: the open list from the opposite side
-    void update_node(NodePtr node, size_t target, std::vector<NodePtr>& cur_list,
-        const std::vector<NodePtr>& open, SolutionSet &solutions, const Heuristic& heuristic_f);
+    void update_open(vector<NodePtr>& open, const vector<NodePtr>& other_open,
+        size_t target, SolutionSet &solutions);
 
 public:
-    virtual std::string get_solver_name() {return "BOZ*"; }
+    virtual std::string get_solver_name() {return "BOPS"; }
     inline size_t get_look_forward(void) {return lookahead_f;}
     inline size_t get_look_backward(void) {return lookahead_b;}
     inline void set_look_forward(size_t val) {lookahead_f = val;}

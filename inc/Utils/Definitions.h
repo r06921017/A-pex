@@ -18,6 +18,7 @@
 #define DEBUG 1
 #endif
 
+using namespace std;
 
 const size_t MAX_COST = std::numeric_limits<size_t>::max();
 
@@ -33,14 +34,14 @@ std::ostream& operator<<(std::ostream &stream, const Pair<T> pair) {
 
 template<typename T>
 std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
-    assert(a.size() == b.szie());
+    assert(a.size() == b.size());
     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(a), std::plus<T>());
     return a;
 }
 
 template<typename T>
 std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
-    assert(a.size() == b.szie());
+    assert(a.size() == b.size());
     std::vector<T> output;
     output.reserve(a.size());
     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(output), std::plus<T>());
@@ -101,12 +102,12 @@ struct Node {
     std::vector<size_t> h;
     std::vector<size_t> f;
     NodePtr parent;
-    NodePtr parent2;  // the parent from the other node, used only when we find a solution
-    bool is_forward = true;
+    list<size_t> path;  // the path that this node represents
+    bool is_forward;
 
     Node (size_t id, std::vector<size_t> g, std::vector<size_t> h, NodePtr parent=nullptr, 
-        bool is_forward=true, NodePtr parent2=nullptr) : 
-        id(id), g(g), h(h), f(g.size()), parent(parent), is_forward(is_forward), parent2(parent2) {
+        bool is_forward=true) : 
+        id(id), g(g), h(h), f(g.size()), parent(parent), is_forward(is_forward) {
         for (size_t i = 0; i < g.size(); i++) {
                 f[i] = g[i] + h[i];
         }
@@ -131,10 +132,6 @@ struct Node {
         bool operator()(const NodePtr &a, const NodePtr &b) const;
     };
 
-    struct more_than_full_cost_b {
-        bool operator()(const NodePtr &a, const NodePtr &b) const;
-    };
-
     enum LEX_ORDER {LEX0, LEX1};
     struct more_than_lex{
         Node::LEX_ORDER order;
@@ -154,6 +151,20 @@ struct Node {
         }
     };
     friend std::ostream& operator<<(std::ostream &stream, const Node &node);
+
+    void set_path(void) {
+        if (parent == nullptr) {
+            path = list<size_t>({id});
+        } else {
+            list<size_t> tmp_path = parent->path;
+            tmp_path.push_back(id);
+            path = tmp_path;
+        }
+    }
+
+    void set_path(list<size_t> in_path) {
+        path = in_path;
+    }
 };
 
 
@@ -234,6 +245,9 @@ std::ostream& operator<<(std::ostream& os, const Interval& interval);
 using IntervalList   = std::vector<Interval>;
 
 typedef boost::heap::priority_queue<NodePtr , boost::heap::compare<Node::compare_lex1> > heap_open_t;
+typedef pair<list<size_t>, vector<size_t>> PathGvalPair;
 
+list<PathGvalPair> get_paths(const vector<NodePtr>& in_open);
+PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target);
 
 #endif //UTILS_DEFINITIONS_H

@@ -12,6 +12,7 @@
 #include "SingleCriteria.h"
 #include "ApexSearch.h"
 #include "NAMOA.h"
+#include "BOPS.h"
 
 #include <boost/program_options.hpp>
 #include<boost/tokenizer.hpp>
@@ -30,13 +31,11 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     // Compute heuristic
     std::cout << "Start Computing Heuristic" << std::endl;
     ShortestPathHeuristic sp_heuristic(target, graph_size, inv_graph);
-    ShortestPathHeuristic sp_heuristic_b(source, graph_size, inv_graph);
     // sp_heuristic.set_all_to_zero();
     std::cout << "Finish Computing Heuristic\n" << std::endl;
 
     using std::placeholders::_1;
     Heuristic heuristic = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic, _1);
-    Heuristic heuristic_b = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic_b, _1);
 
     SolutionSet solutions;
     int num_exp, num_gen;
@@ -57,6 +56,9 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
         EPS eps_vec (graph.get_num_of_objectives(), eps);
         solver = std::make_unique<ApexSearch>(graph, eps_vec, logger);
         ((ApexSearch*)solver.get())->set_merge_strategy(ms);
+    }else if (algorithm == "BOPS"){
+        Pair<double> eps_pair({eps, eps});
+        solver = std::make_unique<BOPS>(graph, eps_pair, logger);
     }else{
         std::cerr << "unknown solver name" << std::endl;
         exit(-1);
