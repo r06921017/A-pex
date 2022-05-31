@@ -3,9 +3,9 @@
 #include <string>
 #include "Utils/Definitions.h"
 
-list<PathGvalPair> get_paths(const vector<NodePtr>& in_open) {
+list<PathGvalPair> get_paths(const vector<NodePtr>& in_list) {
     list<PathGvalPair> out_paths;
-    for (const auto& n : in_open) {
+    for (const auto& n : in_list) {
         PathGvalPair p = make_pair(n->path, n->g);
         if (find(out_paths.begin(), out_paths.end(), p) == out_paths.end()) {
             out_paths.push_back(p);
@@ -42,6 +42,30 @@ bool is_bounded(NodePtr apex, NodePtr node){
         }
     }
     return true;
+}
+
+void floyd_warshell(vector<vector<size_t>>& dist, size_t c_idx, const AdjacencyMatrix& adj_matrix) {
+    size_t graph_size = adj_matrix.get_graph_size();
+    dist = vector<vector<size_t>>(graph_size, vector<size_t>(graph_size, MAX_COST));
+    for (size_t from = 0; from < graph_size; from ++) {
+        for (size_t to = 0; to < graph_size; to ++) {
+            dist[from][to] = adj_matrix[from][to].cost[c_idx];
+        }
+    }
+    
+    for (size_t v = 0; v < graph_size; v++) {
+        dist[v][v] = 0;
+    }
+
+    for (size_t k = 0; k < graph_size; k++) {
+        for (size_t u = 0; u < graph_size; u++) {
+            for (size_t v = 0; v < graph_size; v++) {
+                if (dist[u][v] > dist[u][k] + dist[k][v]) {
+                    dist[u][v] = dist[u][k] + dist[k][v];
+                }
+            }
+        }
+    }
 }
 
 NodePtr getSource(NodePtr node) {

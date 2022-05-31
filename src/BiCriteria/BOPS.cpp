@@ -7,21 +7,14 @@
 BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger, size_t lh_f,
     size_t lh_b) : BOAStar(adj_matrix, eps, logger), lookahead_f(lh_f), lookahead_b(lh_b) {}
 
-void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions, 
-    AdjacencyMatrix& graph, size_t graph_size, unsigned int time_limit) {
+void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, SolutionSet & solutions, 
+    unsigned int time_limit) {
 
     // Get the all pair shortest path heuristic, which is a set of vectors
-    all_pair_lbs = std::vector<std::vector<std::vector<size_t>>>(graph_size);
-    for (size_t i = 0; i < graph_size; i++) {
-        all_pair_lbs[i] = std::vector<std::vector<size_t>>(graph_size);
-    }
-
-    for (size_t loc1=0; loc1 < graph_size; loc1++) {
-        ShortestPathHeuristic tmp_sp_heuristic(loc1, graph_size, graph);
-        for (size_t loc2=0; loc2 < graph_size; loc2++) {
-            all_pair_lbs[loc1][loc2] = tmp_sp_heuristic(loc2);
-        }
-    }
+    // all_pair_lbs = std::vector<std::vector<std::vector<size_t>>>(graph.get_num_of_objectives());
+    // for (size_t i = 0; i < graph.get_num_of_objectives(); i++) {
+    //     floyd_warshell(all_pair_lbs[i], i, adj_matrix);  // Run Floyd Warshell per cost_id
+    // }
 
     start_time = std::clock();
     this->start_logging(source, target);
@@ -30,6 +23,12 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     NodePtr node_b;
     NodePtr next;
     list<NodePtr> tmp_path;
+
+    // Store the paths
+    list<PathGvalPair> open_f_paths;
+    list<PathGvalPair> open_b_paths;
+    list<PathGvalPair> closed_f_paths;
+    list<PathGvalPair> closed_b_paths;
 
     // Saving all the unused NodePtrs in a vector improves performace for some reason
     std::vector<NodePtr> closed_f;  // forward
@@ -46,12 +45,12 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     std::vector<NodePtr> open_b;
     std::make_heap(open_b.begin(), open_b.end(), more_than);
 
-    node_f = std::make_shared<Node>(source, std::vector<size_t>(2,0), all_pair_lbs[source][target]);
+    node_f = std::make_shared<Node>(source, std::vector<size_t>(2,0), heuristic(source));
     node_f->set_path();
     open_f.push_back(node_f);
     std::push_heap(open_f.begin(), open_f.end(), more_than);
 
-    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), all_pair_lbs[target][source]);
+    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), heuristic(target));
     node_f->set_path();
     open_b.push_back(node_b);
     std::push_heap(open_b.begin(), open_b.end(), more_than);
@@ -59,7 +58,7 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     while (!open_f.empty() && !open_b.empty())
     {
         // Begin with forward search
-        update_open(open_f, open_b, target, solutions);
+        update_open(open_f, open_b, closed_f, closed_b, target, solutions);
         while (!open_f.empty()) {
             if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit){
                 this->end_logging(solutions, false);
@@ -72,6 +71,20 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
                 num_generation += num_generation_f;
                 num_expansion_f = 0;
                 num_generation_f = 0;
+
+                // extract paths from the current open list
+                open_f_paths = get_paths(open_f);
+                closed_f_paths = get_paths(closed_f);
+
+                list<PathGvalPair>::iterator ofp_it = open_f_paths.begin();
+                while (ofp_it != open_f_paths.end()) {
+                    if (find(closed_f_paths.begin(), closed_f_paths.end(), *ofp_it) != closed_f_paths.end()) {
+                        ofp_it = open_f_paths.erase(ofp_it);
+                    } else {
+                        ++ ofp_it;
+                    }
+                }
+
                 break;
             }
 
@@ -102,31 +115,37 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
             const std::vector<Edge> &outgoing_edges = adj_matrix[node_f->id];
             for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
                 size_t next_id = p_edge->target;
-                std::vector<size_t> next_g = {node_f->g[0]+p_edge->cost[0], 
-                    node_f->g[1]+p_edge->cost[1]};
-                std::vector<size_t> next_h = all_pair_lbs[next_id][target];
+                std::vector<size_t> next_g = node_f->g + p_edge->cost;
 
-                // Dominance check
-                if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_f[target]) ||
-                    (next_g[1] >= min_g2_f[next_id])) {
-                    continue;
+                // Update the heuristics according to the other open list
+                for (const auto& tmp_nb : open_b) {
+                    vector<size_t> next_h = get_diff(heuristic(next_id), heuristic(tmp_nb->id));
+                    next_h += tmp_nb->g;
+
+                    // Dominance check
+                    if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_f[target]) ||
+                        (next_g[1] >= min_g2_f[next_id])) {
+                        continue;
+                    }
+
+                    // If not dominated create node and push to queue
+                    // Creation is defered after dominance check as it is
+                    // relatively computational heavy and should be avoided if possible
+                    next = std::make_shared<Node>(next_id, next_g, next_h, node_f);
+                    next->set_path();
+
+                    open_f.push_back(next);
+                    std::push_heap(open_f.begin(), open_f.end(), more_than);
                 }
-
-                // If not dominated create node and push to queue
-                // Creation is defered after dominance check as it is
-                // relatively computational heavy and should be avoided if possible
-                next = std::make_shared<Node>(next_id, next_g, next_h, node_f);
-                next->set_path();
-
-                open_f.push_back(next);
-                std::push_heap(open_f.begin(), open_f.end(), more_than);
 
                 closed_f.push_back(node_f);
             }
         }
 
         // Backward search
-        update_open(open_b, open_f, target, solutions);
+        // TODO: 1. extract the paths from OPEN, and then ignore the paths from CLOSED
+        // 2. For each extracted path, update the front-to-front heuristic
+        update_open(open_b, open_f, closed_b, closed_f, target, solutions);
         while (!open_b.empty()) {
             if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit){
                 this->end_logging(solutions, false);
@@ -274,7 +293,8 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
 //     open = new_open;
 // }
 
-void BOPS::update_open(vector<NodePtr>& open, const vector<NodePtr>& other_open,
+void BOPS::update_open(vector<NodePtr>& open, const vector<NodePtr>& other_open, 
+    const vector<NodePtr>& closed, const vector<NodePtr>& other_closed, 
     size_t target, SolutionSet &solutions) {
 
     // Collect the paths from both open lists
@@ -287,8 +307,29 @@ void BOPS::update_open(vector<NodePtr>& open, const vector<NodePtr>& other_open,
     }
 
     bool is_forward = open[0]->is_forward;
+
     list<PathGvalPair> open_paths = get_paths(open);
+    list<PathGvalPair> closed_paths = get_paths(closed);
+    list<PathGvalPair>::iterator op_it = open_paths.begin();
+    while (op_it != open_paths.end()) {
+        if (find(closed_paths.begin(), closed_paths.end(), *op_it) != closed_paths.end()) {
+            op_it = open_paths.erase(op_it);
+        } else {
+            ++ op_it;
+        }
+    }
+
     list<PathGvalPair> other_open_paths = get_paths(other_open);
+    list<PathGvalPair> other_closed_paths = get_paths(other_closed);
+    op_it = other_open_paths.begin();
+    while (op_it != other_open_paths.end()) {
+        if (find(other_closed_paths.begin(), other_closed_paths.end(), *op_it) != other_closed_paths.end()) {
+            op_it = other_open_paths.erase(op_it);
+        } else {
+            ++ op_it;
+        }
+    }
+
     vector<NodePtr> new_open;
 
     for (const auto& p : open_paths) {

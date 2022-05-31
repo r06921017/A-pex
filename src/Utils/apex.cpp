@@ -3,7 +3,7 @@
 
 // return true if node dom ape x
 bool is_dominated_dr(NodePtr apex, NodePtr node){
-  for (int i = 1; i < apex->f.size(); i ++ ){
+  for (size_t i = 1; i < apex->f.size(); i ++ ){
     if (node->f[i] > apex->f[i]){
       return false;
     }
@@ -13,7 +13,7 @@ bool is_dominated_dr(NodePtr apex, NodePtr node){
 
 // (dominatee ,dominator)
 bool is_dominated_dr(NodePtr apex, NodePtr node, const EPS eps){
-  for (int i = 1; i < apex->f.size(); i ++ ){
+  for (size_t i = 1; i < apex->f.size(); i ++ ){
     if (node->f[i] > (1 + eps[i]) * apex->f[i]){
       return false;
     }
@@ -23,7 +23,7 @@ bool is_dominated_dr(NodePtr apex, NodePtr node, const EPS eps){
 
 // return true if vector b dominates a
 bool is_dominated_dr(const vector<size_t>& a, const vector<size_t>& b) {
-  for (int i = 1; i < a.size(); i ++) {
+  for (size_t i = 1; i < a.size(); i ++) {
     if (b[i] > a[i]){
       return false;
     }
@@ -32,7 +32,7 @@ bool is_dominated_dr(const vector<size_t>& a, const vector<size_t>& b) {
 }
 
 bool is_bounded(NodePtr apex, NodePtr node,  const EPS eps){
-  for (int i = 0; i < apex->f.size(); i ++ ){
+  for (size_t i = 0; i < apex->f.size(); i ++ ){
     if (node->f[i] > (1 + eps[i]) * apex->f[i]){
       return false;
     }
@@ -51,7 +51,7 @@ bool is_bounded(NodePtr apex, NodePtr node,  const EPS eps){
 
 double compute_slack(NodePtr apex, NodePtr node,  const EPS eps){
   double min_slack = ( (1 + eps[0]) - (double)node->g[0] / (double) apex->g[0] ) / eps[0];
-  for (int i = 1; i < apex->g.size(); i ++ ){
+  for (size_t i = 1; i < apex->g.size(); i ++ ){
 
     double slack = ( (1 + eps[i]) - (double)node->g[i] / (double) apex->g[i] ) / eps[i];
     if (slack < min_slack){
@@ -69,7 +69,7 @@ ApexPathPair::ApexPathPair(const ApexPathPairPtr parent, const Edge&  edge): h(p
   std::vector<size_t> new_apex_g(parent->apex->g);
   std::vector<size_t> new_g(parent->path_node->g);
 
-  for (int i = 0; i < new_apex_g.size(); i ++){
+  for (size_t i = 0; i < new_apex_g.size(); i ++){
     new_apex_g[i] += edge.cost[i];
     new_g[i] += edge.cost[i];
   }
@@ -89,7 +89,7 @@ bool ApexPathPair::update_nodes_by_merge_if_bounded(const ApexPathPairPtr &other
   NodePtr new_path_node = nullptr;
 
   // Merge apex
-  for (int i = 0; i < other->apex->g.size(); i ++){
+  for (size_t i = 0; i < other->apex->g.size(); i ++){
     if (other->apex->g[i] < new_apex->g[i]){
       new_apex->g[i] = other->apex->g[i];
       new_apex->f[i] = other->apex->f[i];
@@ -149,7 +149,7 @@ bool ApexPathPair::update_nodes_by_merge_if_bounded(const ApexPathPairPtr &other
     }
   }else if (s == MergeStrategy::REVERSE_LEX){
     new_path_node = this->path_node;
-    for (int i = 0; i < new_apex->g.size(); i++){
+    for (size_t i = 0; i < new_apex->g.size(); i++){
       int i_r = new_apex->g.size() - 1 - i;
       if (this->path_node->g[i_r] != other->path_node->g[i_r]){
         new_path_node = this->path_node->g[i_r] < other->path_node->g[i_r] ?this->path_node: other->path_node;
@@ -182,7 +182,7 @@ bool ApexPathPair::update_apex_by_merge_if_bounded(const NodePtr &other_apex, co
   NodePtr new_apex = std::make_shared<Node>(this->apex->id, this->apex->g, this->apex->h);
   bool update_flag = false;
   // Merge apex
-  for (int i = 0; i < other_apex->g.size(); i ++){
+  for (size_t i = 0; i < other_apex->g.size(); i ++){
     if (other_apex->f[i] < new_apex->f[i]){
       new_apex->g[i] = other_apex->f[i];
       new_apex->f[i] = other_apex->f[i];

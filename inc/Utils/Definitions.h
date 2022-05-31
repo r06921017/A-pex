@@ -48,6 +48,17 @@ std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
     return output;
 }
 
+template<typename T>
+vector<T> get_diff(const vector<T>& a, const vector<T>& b) {
+    assert(a.size() == b.size());
+    vector<T> output;
+    output.reserve(a.size());
+    for (size_t t = 0; t < a.size(); t ++) {
+        output[t] = (a[t] < b[t])? b[t] - a[t] : a[t] - b[t];
+    }
+    return output;
+}
+
 using Heuristic = std::function<std::vector<size_t>(size_t)>;
 
 // Structs and classes
@@ -77,6 +88,7 @@ public:
     void add(Edge edge);
     size_t size(void) const;
     size_t get_num_of_objectives() const;
+    inline size_t get_graph_size(void) const {return graph_size;}
     const std::vector<Edge>& operator[](size_t vertex_id) const;
   
     friend std::ostream& operator<<(std::ostream &stream, const AdjacencyMatrix &adj_matrix);
@@ -247,7 +259,8 @@ using IntervalList   = std::vector<Interval>;
 typedef boost::heap::priority_queue<NodePtr , boost::heap::compare<Node::compare_lex1> > heap_open_t;
 typedef pair<list<size_t>, vector<size_t>> PathGvalPair;
 
-list<PathGvalPair> get_paths(const vector<NodePtr>& in_open);
+list<PathGvalPair> get_paths(const vector<NodePtr>& in_list);
 PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target);
+void floyd_warshell(vector<vector<size_t>>& rst, size_t c_idx, const AdjacencyMatrix& adj_matrix);
 
 #endif //UTILS_DEFINITIONS_H

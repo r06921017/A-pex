@@ -62,7 +62,8 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "lu": "cpp"
     },
     "autoDocstring.docstringFormat": "google",
     "editor.snippetSuggestions": "top",

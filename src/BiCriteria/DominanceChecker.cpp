@@ -19,7 +19,6 @@ bool LocalCheck::is_dominated(ApexPathPairPtr node){
 }
 
 void LocalCheck::add_node(ApexPathPairPtr ap){
-    auto id = ap->id;
     assert(min_g2[ap->id] > ap->apex->g[1]);
     min_g2[ap->id] = ap->apex->g[1];
 }

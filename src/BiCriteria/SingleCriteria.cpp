@@ -62,5 +62,5 @@ NodePtr AStar::operator()(size_t source, size_t target, Heuristic &heuristic, No
             // closed.push_back(node);
         }
     }
-
+    return nullptr;
 }
