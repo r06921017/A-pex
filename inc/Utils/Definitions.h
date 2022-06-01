@@ -21,7 +21,7 @@
 using namespace std;
 
 const size_t MAX_COST = std::numeric_limits<size_t>::max();
-
+typedef pair<list<size_t>, vector<size_t>> PathGvalPair;
 
 template<typename T>
 using Pair      = std::array<T, 2>;
@@ -32,12 +32,12 @@ std::ostream& operator<<(std::ostream &stream, const Pair<T> pair) {
     return stream;
 }
 
-template<typename T>
-std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
-    assert(a.size() == b.size());
-    std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(a), std::plus<T>());
-    return a;
-}
+// template<typename T>
+// std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
+//     assert(a.size() == b.size());
+//     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(a), std::plus<T>());
+//     return a;
+// }
 
 template<typename T>
 std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
@@ -54,7 +54,19 @@ vector<T> get_diff(const vector<T>& a, const vector<T>& b) {
     vector<T> output;
     output.reserve(a.size());
     for (size_t t = 0; t < a.size(); t ++) {
-        output[t] = (a[t] < b[t])? b[t] - a[t] : a[t] - b[t];
+        T val = (a[t] < b[t])? b[t] - a[t] : a[t] - b[t];
+        output.push_back(val);
+    }
+    return output;
+}
+
+template<typename T>
+vector<T> get_comax(const vector<T>& a, const vector<T>& b) {
+    assert(a.size() == b.size());
+    vector<T> output;
+    output.reserve(a.size());
+    for (size_t t = 0; t < a.size(); t ++) {
+        output.push_back(max(a[t], b[t]));
     }
     return output;
 }
@@ -104,25 +116,51 @@ using ApexPathPairPtr   = std::shared_ptr<ApexPathPair>;
 using SolutionSet   = std::vector<NodePtr>;
 using PPSolutionSet = std::vector<PathPairPtr>;
 using ApexPathSolutionSet = std::vector<ApexPathPairPtr>;
+using boost::heap::pairing_heap;
+using boost::heap::compare;
 
 using EPS = std::vector<double>;
 
 // TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
+    struct lex_compare {
+        bool operator() (const vector<size_t>& a, const vector<size_t>& b) const {
+            assert(a->size() == b->size());
+            for (size_t i = 0; (i+1) < a.size(); i ++) {
+                if (a[i] != b[i]) {
+                    return a[i] > b[i];
+                }
+            }
+            return a.back() > b.back();
+        }
+    };
+
     size_t id;
-    std::vector<size_t> g;
-    std::vector<size_t> h;
-    std::vector<size_t> f;
+    vector<size_t> g;
+    vector<size_t> h;
+    pairing_heap<vector<size_t>, compare<lex_compare>> other_h;
+
+    vector<size_t> f;
     NodePtr parent;
     list<size_t> path;  // the path that this node represents
     bool is_forward;
+    const PathGvalPair* other_path;
 
-    Node (size_t id, std::vector<size_t> g, std::vector<size_t> h, NodePtr parent=nullptr, 
-        bool is_forward=true) : 
-        id(id), g(g), h(h), f(g.size()), parent(parent), is_forward(is_forward) {
-        for (size_t i = 0; i < g.size(); i++) {
-                f[i] = g[i] + h[i];
+    Node (size_t id, vector<size_t> g, vector<size_t> h, 
+        NodePtr parent=nullptr, bool is_fwd=true, const PathGvalPair* other_path=nullptr) : 
+        id(id), g(g), h(h), f(g+h), parent(parent), is_forward(is_fwd), other_path(other_path) {};
+    
+    Node (size_t id, vector<size_t> in_g, list<vector<size_t>> in_h=list<vector<size_t>>(), 
+        NodePtr parent=nullptr, bool is_fwd=true, const PathGvalPair* other_path=nullptr) : 
+        id(id), g(in_g), parent(parent), is_forward(is_fwd), other_path(other_path) {
+        if (!in_h.empty()) {
+            for (const auto& tmp_h : in_h) {
+                other_h.push(tmp_h);
+            }
         }
+        h = other_h.top();
+        f = g + h;
+        other_h.pop();
     };
 
     struct more_than_specific_heurisitic_cost {
@@ -176,6 +214,62 @@ struct Node {
 
     void set_path(list<size_t> in_path) {
         path = in_path;
+    }
+
+    void update_h(void) {
+        h = other_h.top();
+        other_h.pop();
+    }
+
+    void set_hval(list<vector<size_t>> in_h, bool reset=true) {
+        if (reset) {
+            h.clear();
+            other_h.clear();
+        } else {
+            other_h.push(h);
+        }
+
+        for (const auto& tmp_h : in_h) {
+            other_h.push(tmp_h);
+        }
+        update_h();
+    }
+
+    void set_hval(vector<size_t> in_h, bool reset=true) {
+        if (reset) {
+            h.clear();
+            other_h.clear();
+        } else {
+            other_h.push(h);
+        }
+        other_h.push(in_h);
+        update_h();
+    }
+
+    void print_h(void) {
+        cout << "h val: [";
+        for (size_t i = 0; i < h.size(); i++) {
+            cout << h[i];
+            if (i == h.size()-1) 
+                cout << "]" << endl;
+            else
+                cout << ", ";
+        }
+        cout << "other_h: " << endl;
+        pairing_heap<vector<size_t>, compare<lex_compare>> tmp_h(other_h);
+        while(!tmp_h.empty()) {
+            vector<size_t> top_h = tmp_h.top();
+            tmp_h.pop();
+            cout << "[";
+            for (size_t i = 0; i < top_h.size(); i++) {
+                cout << top_h[i];
+                if (i == top_h.size()-1) 
+                    cout << "]" << endl;
+                else
+                    cout << ", ";
+            }
+        }
+        cout << endl;
     }
 };
 
@@ -257,7 +351,6 @@ std::ostream& operator<<(std::ostream& os, const Interval& interval);
 using IntervalList   = std::vector<Interval>;
 
 typedef boost::heap::priority_queue<NodePtr , boost::heap::compare<Node::compare_lex1> > heap_open_t;
-typedef pair<list<size_t>, vector<size_t>> PathGvalPair;
 
 list<PathGvalPair> get_paths(const vector<NodePtr>& in_list);
 PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target);

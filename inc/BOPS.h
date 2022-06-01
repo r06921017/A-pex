@@ -12,6 +12,8 @@ class BOPS: public BOAStar {
 private:
     size_t lookahead_f;
     size_t lookahead_b;
+    Heuristic heuristic_f;
+    Heuristic heuristic_b;
     std::vector<std::vector<std::vector<size_t>>> all_pair_lbs;
 
 protected:
@@ -41,9 +43,14 @@ protected:
     // is_fw: whether the node is from forward or backward searches
     // cur_list: the list for putting the nodes from the current side
     // open: the open list from the opposite side
-    void update_open(vector<NodePtr>& open, const vector<NodePtr>& other_open, 
-        const vector<NodePtr>& closed, const vector<NodePtr>& other_closed,
-        size_t target, SolutionSet &solutions);
+    // void update_open(vector<NodePtr>& open, SolutionSet &solutions, size_t target, 
+    //     const vector<NodePtr>& other_open, const vector<NodePtr>& closed, 
+    //     const vector<NodePtr>& other_closed);
+
+    void update_open(vector<NodePtr>& open, SolutionSet &solutions,  size_t target,
+        list<PathGvalPair>& open_paths, const list<PathGvalPair>& other_open_paths);
+
+    vector<size_t> get_diff_heuristic(size_t loc1, size_t loc2);
 
 public:
     virtual std::string get_solver_name() {return "BOPS"; }
@@ -52,16 +59,20 @@ public:
     inline void set_look_forward(size_t val) {lookahead_f = val;}
     inline void set_look_backward(size_t val) {lookahead_b = val;}
 
-    BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, const LoggerPtr logger=nullptr, 
-        size_t lh_f=SIZE_MAX, size_t lh_b=SIZE_MAX);
+    BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, Heuristic &h_f, Heuristic &h_b, 
+        const LoggerPtr logger=nullptr, size_t lh_f=SIZE_MAX, size_t lh_b=SIZE_MAX);
 
-    void operator()(size_t source, size_t target, Heuristic &heuristic, SolutionSet & solutions, 
+    void operator()(size_t source, size_t target, SolutionSet & solutions, 
         unsigned int time_limit);
 
     // void operator()(size_t source, size_t target, SolutionSet &solutions, AdjacencyMatrix& graph, 
     //     size_t graph_size, unsigned int time_limit=UINT_MAX);
 
     std::vector<std::pair<std::clock_t, NodePtr>> get_sol_log(){return solution_log;}
+
+    size_t num_sol_front = 0;
+    size_t num_sol_back = 0;
+    size_t num_sol_middle = 0;
 };
 
 

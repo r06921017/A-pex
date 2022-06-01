@@ -31,11 +31,13 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     // Compute heuristic
     std::cout << "Start Computing Heuristic" << std::endl;
     ShortestPathHeuristic sp_heuristic(target, graph_size, inv_graph);
+    ShortestPathHeuristic sp_heuristic_b(source, graph_size, inv_graph);
     // sp_heuristic.set_all_to_zero();
     std::cout << "Finish Computing Heuristic\n" << std::endl;
 
     using std::placeholders::_1;
     Heuristic heuristic = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic, _1);
+    Heuristic heuristic_b = std::bind( &ShortestPathHeuristic::operator(), sp_heuristic_b, _1);
 
     SolutionSet solutions;
     int num_exp, num_gen;
@@ -45,14 +47,17 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     if (algorithm == "BOPS") {
         std::unique_ptr<BOPS> solver;
         Pair<double> eps_pair({eps, eps});
-        solver = std::make_unique<BOPS>(graph, eps_pair, logger);
-        (*solver)(source, target, solutions, graph, graph_size, time_limit);
+        solver = std::make_unique<BOPS>(graph, eps_pair, heuristic, heuristic_b, logger, 1000, 1000);
+        (*solver)(source, target, solutions, time_limit);
         runtime = std::clock() - start;
 
         std::cout << "Node expansion: " << solver->get_num_expansion() << std::endl;
         std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
         num_exp = solver->get_num_expansion();
         num_gen = solver->get_num_generation();
+        std::cout << "num_sol_front: " << solver->num_sol_front << ", " <<
+            "num_sol_back: " << solver->num_sol_back << ", " <<
+            "num_sol_middle: " << solver->num_sol_middle << ", " << endl;
         for (auto sol: solutions){
             std::cout << *sol << std::endl;
         }
@@ -94,7 +99,7 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
            << num_gen << "\t"
            << num_exp << "\t"
            << solutions.size() << "\t"
-           << (double) runtime / CLOCKS_PER_SEC
+           << (double) runtime / CLOCKS_PER_SEC << "\t"
            << std::endl;
 
     std::cout << "-----End Single Example-----" << std::endl;
