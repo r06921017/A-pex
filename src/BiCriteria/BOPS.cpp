@@ -11,6 +11,7 @@ BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, Heuristic &h_f, 
     BOAStar(adj_matrix, eps, logger), lookahead_f(lh_f), lookahead_b(lh_b),
     heuristic_f(h_f), heuristic_b(h_b) {}
 
+// TODO: only count the 1st element of the front to front heuristic, and count the 2nd if needed
 void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     unsigned int time_limit) {
 
@@ -27,8 +28,9 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     list<PathGvalPair> closed_b_paths;
 
     // Saving all the unused NodePtrs in a vector improves performace for some reason
-    std::vector<NodePtr> closed_f;  // forward
-    std::vector<NodePtr> closed_b;  // backward
+    vector<NodePtr> closed_f;  // forward
+    vector<NodePtr> closed_b;  // backward
+    vector<NodePtr> candidate_sols;  // set for the condidate solutions, need to concadinate with either the forward or backward open list
 
     // Vector to hold mininum cost of 2nd criteria per node
     std::vector<size_t> min_g2_f(this->adj_matrix.size()+1, MAX_COST);
@@ -43,12 +45,17 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
 
     node_f = std::make_shared<Node>(source, std::vector<size_t>(2,0), heuristic_f(source), nullptr, true);
     node_f->set_path();
+
+    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), heuristic_b(target), nullptr, false);
+    node_b->set_path();
+
+    node_f->set_h_node(node_b);
+    node_b->set_h_node(node_f);
+
     open_f.push_back(node_f);
     std::push_heap(open_f.begin(), open_f.end(), more_than);
     list<PathGvalPair> open_f_paths = get_paths(open_f);
 
-    node_b = std::make_shared<Node>(target, std::vector<size_t>(2,0), heuristic_b(target), nullptr, false);
-    node_b->set_path();
     open_b.push_back(node_b);
     std::push_heap(open_b.begin(), open_b.end(), more_than);
     list<PathGvalPair> open_b_paths = get_paths(open_b);
@@ -132,13 +139,14 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
                 continue;
             }
 
+            // TODO: might need the other heuristics for the pathmax heuristic 
+            // if front to front is too time-consuming
+            node_f->other_h.clear();  // To save memory since we decide to expand this node
             min_g2_f[node_f->id] = node_f->g[1];
             num_expansion_f += 1;
 
             // Find one solution during the search
             if (node_f->id == target) {
-                // node_f->g = node_f->g + node_f->other_path->second;
-
                 auto it = solutions.begin();
                 while (it != solutions.end()) {
                     if (is_bounded(*it, node_f)) {
@@ -209,8 +217,6 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
         }
 
         // Backward search
-        // TODO: 1. extract the paths from OPEN, and then ignore the paths from CLOSED
-        // 2. For each extracted path, update the front-to-front heuristic
         if (SCREEN)
             cout << "Start backward search with open_b size: " << open_b.size() << endl;
         while (!open_b.empty()) {

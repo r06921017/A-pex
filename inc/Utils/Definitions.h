@@ -121,24 +121,27 @@ using boost::heap::compare;
 
 using EPS = std::vector<double>;
 
+typedef pair<vector<size_t>, NodePtr> HeuristicNodePair;
+
 // TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
     struct lex_compare {
-        bool operator() (const vector<size_t>& a, const vector<size_t>& b) const {
-            assert(a->size() == b->size());
-            for (size_t i = 0; (i+1) < a.size(); i ++) {
-                if (a[i] != b[i]) {
-                    return a[i] > b[i];
+        bool operator() (const HeuristicNodePair& a, const HeuristicNodePair& b) const {
+            assert(a.size() == b.size());
+            for (size_t i = 0; (i+1) < a.first.size(); i ++) {
+                if (a.first[i] != b.first[i]) {
+                    return a.first[i] > b.first[i];
                 }
             }
-            return a.back() > b.back();
+            return a.first.back() > b.first.back();
         }
     };
 
     size_t id;
     vector<size_t> g;
     vector<size_t> h;
-    pairing_heap<vector<size_t>, compare<lex_compare>> other_h;
+    NodePtr h_node;  // node that lead to the current heuristic h
+    pairing_heap<HeuristicNodePair, compare<lex_compare>> other_h;
 
     vector<size_t> f;
     NodePtr parent;
@@ -146,19 +149,21 @@ struct Node {
     bool is_forward;
     const PathGvalPair* other_path;
 
-    Node (size_t id, vector<size_t> g, vector<size_t> h, 
-        NodePtr parent=nullptr, bool is_fwd=true, const PathGvalPair* other_path=nullptr) : 
-        id(id), g(g), h(h), f(g+h), parent(parent), is_forward(is_fwd), other_path(other_path) {};
+    Node (size_t id, vector<size_t> g, vector<size_t> h, NodePtr parent=nullptr,
+        bool is_fwd=true, const PathGvalPair* other_path=nullptr, NodePtr h_node=nullptr) : 
+        id(id), g(g), h(h), f(g+h), parent(parent), is_forward(is_fwd), other_path(other_path), 
+        h_node(h_node) {};
     
-    Node (size_t id, vector<size_t> in_g, list<vector<size_t>> in_h=list<vector<size_t>>(), 
+    Node (size_t id, vector<size_t> in_g, list<HeuristicNodePair> h_pair, 
         NodePtr parent=nullptr, bool is_fwd=true, const PathGvalPair* other_path=nullptr) : 
         id(id), g(in_g), parent(parent), is_forward(is_fwd), other_path(other_path) {
-        if (!in_h.empty()) {
-            for (const auto& tmp_h : in_h) {
+        if (!h_pair.empty()) {
+            for (const auto& tmp_h : h_pair) {
                 other_h.push(tmp_h);
             }
         }
-        h = other_h.top();
+        h = other_h.top().first;
+        h_node = other_h.top().second;
         f = g + h;
         other_h.pop();
     };
@@ -217,16 +222,22 @@ struct Node {
     }
 
     void update_h(void) {
-        h = other_h.top();
+        h = other_h.top().first;
+        h_node = other_h.top().second;
         other_h.pop();
     }
 
-    void set_hval(list<vector<size_t>> in_h, bool reset=true) {
+    inline void set_h_node(NodePtr in_h_node) {
+        h_node = in_h_node;
+    }
+
+    void set_h_val(list<HeuristicNodePair> in_h, bool reset=true) {
         if (reset) {
             h.clear();
+            h_node = nullptr;
             other_h.clear();
         } else {
-            other_h.push(h);
+            other_h.push(make_pair(h, h_node));
         }
 
         for (const auto& tmp_h : in_h) {
@@ -235,12 +246,17 @@ struct Node {
         update_h();
     }
 
-    void set_hval(vector<size_t> in_h, bool reset=true) {
+    inline void set_h_val(vector<size_t> in_h) {
+        h = in_h;
+    }
+
+    void set_h_val(HeuristicNodePair in_h, bool reset=true) {
         if (reset) {
             h.clear();
+            h_node = nullptr;
             other_h.clear();
         } else {
-            other_h.push(h);
+            other_h.push(make_pair(h, h_node));
         }
         other_h.push(in_h);
         update_h();
@@ -256,14 +272,15 @@ struct Node {
                 cout << ", ";
         }
         cout << "other_h: " << endl;
-        pairing_heap<vector<size_t>, compare<lex_compare>> tmp_h(other_h);
+        pairing_heap<HeuristicNodePair, compare<lex_compare>> tmp_h(other_h);
         while(!tmp_h.empty()) {
-            vector<size_t> top_h = tmp_h.top();
+            HeuristicNodePair top_h = tmp_h.top();
             tmp_h.pop();
-            cout << "[";
-            for (size_t i = 0; i < top_h.size(); i++) {
-                cout << top_h[i];
-                if (i == top_h.size()-1) 
+            cout << "id: " << top_h.second;
+            cout << " -> [";
+            for (size_t i = 0; i < top_h.first.size(); i++) {
+                cout << top_h.first[i];
+                if (i == top_h.first.size()-1) 
                     cout << "]" << endl;
                 else
                     cout << ", ";
