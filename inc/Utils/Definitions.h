@@ -32,12 +32,12 @@ std::ostream& operator<<(std::ostream &stream, const Pair<T> pair) {
     return stream;
 }
 
-// template<typename T>
-// std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
-//     assert(a.size() == b.size());
-//     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(a), std::plus<T>());
-//     return a;
-// }
+template<typename T>
+std::vector<T>& operator+=(std::vector<T>& a, const std::vector<T>&b) {
+    assert(a.size() == b.size());
+    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::plus<T>());
+    return a;
+}
 
 template<typename T>
 std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
@@ -46,6 +46,11 @@ std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>&b) {
     output.reserve(a.size());
     std::transform(a.begin(), a.end(), b.begin(), std::back_inserter(output), std::plus<T>());
     return output;
+}
+
+template<typename T>
+inline bool operator==(const vector<T>& a, const T& val) {
+    return equal(a.begin(), a.end(), a.begin()) && a.front() == val;
 }
 
 template<typename T>
@@ -121,13 +126,13 @@ using boost::heap::compare;
 
 using EPS = std::vector<double>;
 
-typedef pair<vector<size_t>, NodePtr> HeuristicNodePair;
+typedef pair<vector<size_t>, const NodePtr> HeuristicNodePair;
 
 // TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
     struct lex_compare {
         bool operator() (const HeuristicNodePair& a, const HeuristicNodePair& b) const {
-            assert(a.size() == b.size());
+            assert(a.first.size() == b.first.size());
             for (size_t i = 0; (i+1) < a.first.size(); i ++) {
                 if (a.first[i] != b.first[i]) {
                     return a.first[i] > b.first[i];
@@ -140,32 +145,30 @@ struct Node {
     size_t id;
     vector<size_t> g;
     vector<size_t> h;
-    NodePtr h_node;  // node that lead to the current heuristic h
-    pairing_heap<HeuristicNodePair, compare<lex_compare>> other_h;
-
     vector<size_t> f;
     NodePtr parent;
-    list<size_t> path;  // the path that this node represents
     bool is_forward;
-    const PathGvalPair* other_path;
+    NodePtr h_node;  // node that lead to the current heuristic h
+    pairing_heap<HeuristicNodePair, compare<lex_compare>> other_h;
+    list<size_t> path;  // the path that this node represents
+
+    bool is_cand;
+    size_t num_switch;
 
     Node (size_t id, vector<size_t> g, vector<size_t> h, NodePtr parent=nullptr,
-        bool is_fwd=true, const PathGvalPair* other_path=nullptr, NodePtr h_node=nullptr) : 
-        id(id), g(g), h(h), f(g+h), parent(parent), is_forward(is_fwd), other_path(other_path), 
-        h_node(h_node) {};
+        bool is_fwd=true, NodePtr h_node=nullptr, bool is_cand=false, size_t num_switch=0) : 
+        id(id), g(g), h(h), f(g+h), parent(parent), is_forward(is_fwd), h_node(h_node), 
+        is_cand(is_cand), num_switch(num_switch) {};
     
     Node (size_t id, vector<size_t> in_g, list<HeuristicNodePair> h_pair, 
-        NodePtr parent=nullptr, bool is_fwd=true, const PathGvalPair* other_path=nullptr) : 
-        id(id), g(in_g), parent(parent), is_forward(is_fwd), other_path(other_path) {
+        NodePtr parent=nullptr, bool is_fwd=true, bool is_cand=false, size_t num_switch=0) : 
+        id(id), g(in_g), parent(parent), is_forward(is_fwd), is_cand(is_cand), num_switch(num_switch) {
         if (!h_pair.empty()) {
             for (const auto& tmp_h : h_pair) {
                 other_h.push(tmp_h);
             }
         }
-        h = other_h.top().first;
-        h_node = other_h.top().second;
-        f = g + h;
-        other_h.pop();
+        update_h();
     };
 
     struct more_than_specific_heurisitic_cost {
@@ -221,10 +224,22 @@ struct Node {
         path = in_path;
     }
 
+    void combine_path(void) {
+        list<size_t> other_path = h_node->path;
+        reverse(other_path.begin(), other_path.end());
+        path.insert(path.end(), other_path.begin(), other_path.end());
+        if (!is_forward) {  // The start location of the path is the target
+            reverse(path.begin(), path.end());    
+        }
+    }
+
     void update_h(void) {
+        // In the current implementation, we always check beforhand if the other_h is empty
+        assert(!other_h.empty());
         h = other_h.top().first;
         h_node = other_h.top().second;
         other_h.pop();
+        f = g+h;
     }
 
     inline void set_h_node(NodePtr in_h_node) {
@@ -248,6 +263,7 @@ struct Node {
 
     inline void set_h_val(vector<size_t> in_h) {
         h = in_h;
+        f = g + h;
     }
 
     void set_h_val(HeuristicNodePair in_h, bool reset=true) {
@@ -256,6 +272,7 @@ struct Node {
             h_node = nullptr;
             other_h.clear();
         } else {
+            // Push the current h value back for lex comparison
             other_h.push(make_pair(h, h_node));
         }
         other_h.push(in_h);
@@ -263,7 +280,9 @@ struct Node {
     }
 
     void print_h(void) {
-        cout << "h val: [";
+        cout << "current h" << endl;
+        cout << "  id: " << h_node->id;
+        cout << " -> h: [";
         for (size_t i = 0; i < h.size(); i++) {
             cout << h[i];
             if (i == h.size()-1) 
@@ -276,8 +295,8 @@ struct Node {
         while(!tmp_h.empty()) {
             HeuristicNodePair top_h = tmp_h.top();
             tmp_h.pop();
-            cout << "id: " << top_h.second;
-            cout << " -> [";
+            cout << "  id: " << top_h.second->id;
+            cout << " -> h: [";
             for (size_t i = 0; i < top_h.first.size(); i++) {
                 cout << top_h.first[i];
                 if (i == top_h.first.size()-1) 
@@ -346,6 +365,7 @@ struct ApexPathPair {
 
 bool is_bounded(NodePtr apex, NodePtr node,  const EPS eps);
 bool is_bounded(NodePtr apex, NodePtr node);
+bool is_bounded(const vector<size_t>& v, const vector<size_t>& u);
 bool is_dominated_dr(NodePtr apex, NodePtr node);
 bool is_dominated_dr(NodePtr apex, NodePtr node, const EPS eps);
 NodePtr getSource(NodePtr node);
@@ -372,5 +392,6 @@ typedef boost::heap::priority_queue<NodePtr , boost::heap::compare<Node::compare
 list<PathGvalPair> get_paths(const vector<NodePtr>& in_list);
 PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target);
 void floyd_warshell(vector<vector<size_t>>& rst, size_t c_idx, const AdjacencyMatrix& adj_matrix);
+void print_list(vector<NodePtr> in_vec, const Node::more_than_full_cost& more_than, size_t num=SIZE_MAX);
 
 #endif //UTILS_DEFINITIONS_H

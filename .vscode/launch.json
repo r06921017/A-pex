@@ -15,7 +15,7 @@
                 "--start","20002", 
                 "--goal","164983", 
                 "--algorithm","BOPS",
-                "--cutoffTime", "60",
+                "--cutoffTime", "120",
                 "--output","output.txt"
             ],
             "stopAtEntry": false,

@@ -47,10 +47,13 @@ protected:
     //     const vector<NodePtr>& other_open, const vector<NodePtr>& closed, 
     //     const vector<NodePtr>& other_closed);
 
-    void update_open(vector<NodePtr>& open, SolutionSet &solutions,  size_t target,
-        list<PathGvalPair>& open_paths, const list<PathGvalPair>& other_open_paths);
+    // void update_open(vector<NodePtr>& open, SolutionSet &solutions,  size_t target,
+    //     list<PathGvalPair>& open_paths, const list<PathGvalPair>& other_open_paths);
 
     vector<size_t> get_diff_heuristic(size_t loc1, size_t loc2);
+
+    void reinsert(NodePtr node, vector<NodePtr>& open, vector<NodePtr>& closed, 
+        const Node::more_than_full_cost& more_than);
 
 public:
     virtual std::string get_solver_name() {return "BOPS"; }

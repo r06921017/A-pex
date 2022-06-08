@@ -35,9 +35,20 @@ PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, con
     return out_pair;
 }
 
+// NodePtr apex is bounded (dominated) by NodePtr node
 bool is_bounded(NodePtr apex, NodePtr node){
     for (size_t i = 0; i < apex->f.size(); i ++ ){
         if (node->f[i] > apex->f[i]){
+            return false;
+        }
+    }
+    return true;
+}
+
+// vector v is bounded (dominated) by vector u
+bool is_bounded(const vector<size_t>& v, const vector<size_t>& u) {
+    for (size_t i = 0; i < v.size(); i ++ ){
+        if (u[i] > v[i]){
             return false;
         }
     }
@@ -398,4 +409,17 @@ Interval::Interval(const NodePtr top_left, const NodePtr bottom_right, std::shar
 std::ostream& operator<<(std::ostream& os, const Interval& interval){
   os << "Top left: " << *interval.top_left  << ", Bottom right: " << *interval.bottom_right << ", #nodes: " << interval.to_expand->size();
   return os;
+}
+
+void print_list(vector<NodePtr> in_queue, const Node::more_than_full_cost& more_than, size_t num) {
+    size_t counter = 0;
+    while (!in_queue.empty() && counter < num) {
+        // Pop min from queue and process
+        pop_heap(in_queue.begin(), in_queue.end(), more_than);
+        NodePtr _node_ = in_queue.back();
+        in_queue.pop_back();
+        counter ++;
+        cout << *_node_;
+        cout << endl;
+    }
 }

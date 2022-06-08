@@ -27,12 +27,14 @@ std::string alg_variant = "";
 
 // Simple example to demonstarte the usage of the algorithm
 
-void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&inv_graph, size_t source, size_t target, std::ofstream& output, std::string algorithm, MergeStrategy ms, LoggerPtr logger, double eps, unsigned int time_limit) {
+void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&inv_graph, 
+    size_t source, size_t target, std::ofstream& output, std::string algorithm, MergeStrategy ms, 
+    LoggerPtr logger, double eps, unsigned int time_limit) {
+
     // Compute heuristic
     std::cout << "Start Computing Heuristic" << std::endl;
     ShortestPathHeuristic sp_heuristic(target, graph_size, inv_graph);
     ShortestPathHeuristic sp_heuristic_b(source, graph_size, inv_graph);
-    // sp_heuristic.set_all_to_zero();
     std::cout << "Finish Computing Heuristic\n" << std::endl;
 
     using std::placeholders::_1;
@@ -51,10 +53,11 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
         (*solver)(source, target, solutions, time_limit);
         runtime = std::clock() - start;
 
-        std::cout << "Node expansion: " << solver->get_num_expansion() << std::endl;
-        std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
         num_exp = solver->get_num_expansion();
         num_gen = solver->get_num_generation();
+        std::cout << "Node expansion: " << num_exp << std::endl;
+        std::cout << "Node generation: " << num_gen << std::endl;
+        std::cout << "Runtime: " <<  ((double) runtime) / CLOCKS_PER_SEC<< std::endl;
         std::cout << "num_sol_front: " << solver->num_sol_front << ", " <<
             "num_sol_back: " << solver->num_sol_back << ", " <<
             "num_sol_middle: " << solver->num_sol_middle << ", " << endl;
