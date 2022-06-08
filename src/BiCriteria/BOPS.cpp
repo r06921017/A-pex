@@ -39,10 +39,10 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     vector<NodePtr> open_b;
     make_heap(open_b.begin(), open_b.end(), more_than);
 
-    node_f = make_shared<Node>(source, std::vector<size_t>(2,0), heuristic_f(source), nullptr, true);
+    node_f = make_shared<Node>(source, vector<size_t>(2,0), heuristic_f(source), nullptr, true);
     node_f->set_path();
 
-    node_b = make_shared<Node>(target, std::vector<size_t>(2,0), heuristic_b(target), nullptr, false);
+    node_b = make_shared<Node>(target, vector<size_t>(2,0), vector<size_t>(2,0), nullptr, false);
     node_b->set_path();
 
     node_f->set_h_node(node_b);
@@ -56,443 +56,351 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     std::push_heap(open_b.begin(), open_b.end(), more_than);
     list<PathGvalPair> open_b_paths = get_paths(open_b);
 
-    while (!open_f.empty() && !open_b.empty()) {
-        // Begin with forward search
+    while (!open_b.empty()) {
+        if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
+            this->end_logging(solutions, false);
+            return;
+        } else if (num_expansion_b > lookahead_b) {  // Switch to forward search
+            num_expansion += num_expansion_b;
+            num_generation += num_generation_b;
+            num_expansion_b = 0;
+            num_generation_b = 0;
+
+            if (SCREEN) {
+                pop_heap(open_b.begin(), open_b.end(), more_than);
+                NodePtr tmp_node_b = open_b.back();
+                cout << "\nBackward search end" << endl;
+                cout << "Current open_b top: " << *tmp_node_b << endl;
+                cout << "open_b size: " << open_b.size() << endl;
+                cout << "solutions size: " << solutions.size() << endl;
+                cout << "candidate_sols size: " << candidate_sols.size() << endl;
+            }
+            break;
+        }
+
+        // Pop min from queue and process
+        std::pop_heap(open_b.begin(), open_b.end(), more_than);
+        node_b = open_b.back();
+        open_b.pop_back();
+        assert(!node_b->is_cand && !node_b->is_forward);
+        // assert(node_b->path.back() == node_b->id);
+
+        if (SCREEN) {
+            cout << "---------------------------------" << endl;
+            cout << "expand node_b" << endl;
+            cout << *node_b << endl;
+            cout << "min_g2_b[source]: " << min_g2_b[source] << endl;
+            cout << "min_g2_b[node_b->id]: " << min_g2_b[node_b->id] << endl;
+            cout << "---------------------------------" << endl;
+        }
+
+        // Dominance check (only local)
+        if (node_b->g[1] >= min_g2_b[node_b->id]) {
+            reinsert(node_b, open_b, closed_b, more_than);
+            continue;
+        }
+
+        // We decide to expand this node
+        // TODO: might need the other heuristics for the pathmax heuristic 
+        // if front to front is too time-consuming
+        min_g2_b[node_b->id] = node_b->g[1];
+        num_expansion_b += 1;
+
+        // // Find one solution during the search
+        // // Only update the candidate solutions, not the solutions
+        // if (node_b->id == node_b->h_node->id) {
+        //     // This is a candidate solution, will be checked in the opposite search
+        //     // Don't need to put in the node to the OPEN
+        //     NodePtr can_sol = make_shared<Node>(node_b->id, node_b->g + node_b->h_node->g, 
+        //         vector<size_t>(node_b->g.size(), 0), node_b->parent, false, node_b->h_node, true);
+        //     can_sol->combine_path();
+        //     candidate_sols.push_back(can_sol);
+
+        //     if (SCREEN) {
+        //         cout << "This is a can_sol" << endl;
+        //         cout << *can_sol;
+        //         cout << endl;
+        //     }
+
+        //     // Reinsert the node with another heuristic to the open
+        //     reinsert(node_b, open_b, closed_b, more_than);
+        //     if (SCREEN) {
+        //         cout << "node_b" << endl;
+        //         cout << *node_b << endl;
+        //         cout << endl;
+        //     }
+        //     continue;
+        // }
+
+        // Check to which neighbors we should extend the paths
+        const vector<Edge> &outgoing_edges = adj_matrix[node_b->id];
         if (SCREEN)
-            cout << "Start forward search with open_f size: " << open_f.size() << endl;
-
-        // Update the heuristic for the backward open list given the forward open list
-        for (auto& _node_ : open_f) {
-            list<HeuristicNodePair> tmp_h_list;
-            for (const auto& _other_node_ : open_b) {
-                if (_other_node_->is_cand) continue;
-                vector<size_t> tmp_h = get_diff_heuristic(_node_->id, _other_node_->id);  // f2f
-                tmp_h += _other_node_->g;
-                bool is_b = false;
-                list<HeuristicNodePair>::iterator h_it = tmp_h_list.begin();
-                while (h_it != tmp_h_list.end()) {
-                    if (is_bounded(h_it->first, tmp_h)) {
-                        h_it = tmp_h_list.erase(h_it);
-                    } else if (is_bounded(tmp_h, h_it->first)) {
-                        is_b = true;
-                        break;
-                    } else {
-                        ++ h_it;
-                    }
-                }
-
-                if (!is_b) {
-                    tmp_h_list.emplace_back(tmp_h, _other_node_);
-                    // if (SCREEN) {
-                    //     vector<size_t> h1_f = heuristic_f(_node_->id);
-                    //     vector<size_t> h1_b = heuristic_b(_node_->id);
-                    //     cout << "curr node id: " << _node_->id << endl;
-                    //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
-                    //         << ", " << h1_b[1] << "]" << endl;
-                    //     h1_f = heuristic_f(_other_node_->id);
-                    //     h1_b = heuristic_b(_other_node_->id);
-                    //     cout << "other node id: " << _other_node_->id << endl;
-                    //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
-                    //         << ", " << h1_b[1] << "]" << endl;
-                    //     cout << "f2f h: [" << tmp_h[0] << ", " << tmp_h[1] << "]" << endl;
-                    //     cout << endl;
-                    // }
-                }
-            }
-            _node_->set_h_val(tmp_h_list);
-
-            // if (SCREEN) {
-            //     _node_->print_h();
-            //     cout << endl;
-            // }
-        }
-
-        if (!candidate_sols.empty()) {
-            // if (SCREEN) {
-            //     cout << "++++++++++++++++++++" << endl;
-            //     cout << "Before adding candidate solutions:" << endl;
-            //     print_list(open_f, more_than);
-            //     cout << "open_f.size() = " << open_f.size() << endl;
-            // }
-
-            open_f.insert(open_f.end(), candidate_sols.begin(), candidate_sols.end());
-            make_heap(open_f.begin(), open_f.end(), more_than);
-
-            // if (SCREEN) {
-            //     cout << "After adding candidate solutions: " << endl;
-            //     print_list(open_f, more_than);
-            //     cout << "open_f.size() = " << open_f.size() << endl;
-            //     cout << "candidate_sols.size() = " << candidate_sols.size() << endl;
-            //     cout << "++++++++++++++++++++" << endl;
-            // }
-        }
-
-        while (!open_f.empty()) {
-            if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
-                this->end_logging(solutions, false);
-                return;
-            } else if (num_expansion_f > lookahead_f) {  // Switch to backward search
-                num_expansion += num_expansion_f;
-                num_generation += num_generation_f;
-                num_expansion_f = 0;
-                num_generation_f = 0;
-
-                if (SCREEN) {
-                    pop_heap(open_f.begin(), open_f.end(), more_than);
-                    NodePtr tmp_node_f = open_f.back();
-                    cout << "\nForward search end" << endl;
-                    cout << "Current open_f top: " << *tmp_node_f << endl;
-                    cout << "open_f size: " << open_f.size() << endl;
-                    cout << "solutions size: " << solutions.size() << endl;
-                    cout << "candidate_sols size: " << candidate_sols.size() << endl;
-                }
-                break;
-            }
-
-            // Pop min from queue and process
-            pop_heap(open_f.begin(), open_f.end(), more_than);
-            node_f = open_f.back();
-            open_f.pop_back();
-            // assert(node_f->path.back() == node_f->id);
+            cout << "outgoing_edges size: " << outgoing_edges.size() << endl;
+        for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
+            if (node_b->parent != nullptr && p_edge->target == node_b->parent->id) 
+                continue;
+            size_t next_id = p_edge->target;
+            vector<size_t> next_g = node_b->g + p_edge->cost;
 
             // Dominance check
-            // if ((!node_f->is_cand && ((1+this->eps[1])*node_f->f[1]) >= min_g2_f[target]) ||
-            //     (!node_f->is_cand && node_f->g[1] >= min_g2_f[node_f->id]) || 
-            //     (node_f->is_cand && node_f->g[1] >= min_g2_f[target])) {
-            //     reinsert(node_f, open_f, closed_f, more_than);
-            //     continue;
-            // }
-            if (node_f->is_cand) {
-                if (node_f->f[1] >= min_f2) {
-                    cout << "can_sol is dominant" << endl;
-                    reinsert(node_f, open_f, closed_f, more_than);
-                    cout << *node_f << endl;
-                    continue;
-                }
-            } else if (((1+this->eps[1])*node_f->f[1]) >= min_g2_f[target] ||
-                (node_f->g[1] >= min_g2_f[node_f->id])) {
-                cout << *node_f << endl;
-                reinsert(node_f, open_f, closed_f, more_than);
+            if (next_g[1] >= min_g2_b[next_id]) {
                 continue;
             }
 
-            // We decide to expand this node
-            // TODO: might need the other heuristics for the pathmax heuristic 
-            // if front to front is too time-consuming
+            next = make_shared<Node>(next_id, next_g, vector<size_t>(next_g.size(), 0), node_b, node_b->is_forward);
+            next->set_path();
+            open_b.push_back(next);
+            push_heap(open_b.begin(), open_b.end(), more_than);
+            num_generation_b +=1;
+
             if (SCREEN) {
-                cout << "---------------------------------" << endl;
-                cout << "expand node_f" << endl;
-                cout << *node_f << endl;
-                cout << "---------------------------------" << endl;
-            }
-            min_g2_f[node_f->id] = node_f->g[1];
-            num_expansion_f += 1;
-
-            // Find one solution during the search
-            if (node_f->is_cand) {
-                solutions.push_back(node_f);
-                num_sol_front ++;
-                log_solution(node_f);
-
-                if (SCREEN) {
-                    cout << "This is a solution!" << endl;
-                    cout << *node_f;
-                    cout << endl;
-                    cout << "----- open_f -----" << endl;
-                    print_list(open_f, more_than, 3);
-                }
-
-                // This is a solution found in the previous iterations.
-                // Remove it from the candidate solution set
-                assert(node_f->h == (size_t) 0);
-                    // cout << "candidate_sols: " << candidate_sols.size() << endl;
-                candidate_sols.erase(remove(candidate_sols.begin(), candidate_sols.end(), node_f), 
-                    candidate_sols.end());
-                    // cout << "new candidate_sols: " << candidate_sols.size() << endl;
-
-                // Push to the closed list
-                min_f2 = node_f->g[1];  // update for global dominance check
-                closed_f.push_back(node_f);
-                continue;
-            } else if (node_f->id == node_f->h_node->id) {
-                // This is a candidate solution, will be checked in the opposite search
-                // Don't need to put in the node to the OPEN
-                NodePtr can_sol = make_shared<Node>(node_f->id, node_f->g + node_f->h_node->g, 
-                    vector<size_t>(node_f->g.size(), 0), node_f->parent, true, node_f->h_node, true);
-                can_sol->combine_path();
-                candidate_sols.push_back(can_sol);
-                open_f.push_back(can_sol);
-                push_heap(open_f.begin(), open_f.end(), more_than);
-
-                if (SCREEN) {
-                    cout << "This is a can_sol" << endl;
-                    cout << *can_sol;
-                    cout << endl;
-                    cout << "----- open_f -----" << endl;
-                    print_list(open_f, more_than, 3);
-                }
-
-                // Reinsert the node with another heuristic to the open
-                reinsert(node_f, open_f, closed_f, more_than);
-                continue;
-            }
-
-            // Check to which neighbors we should extend the paths
-            const vector<Edge> &outgoing_edges = adj_matrix[node_f->id];
-            if (SCREEN)
-                cout << "outgoing_edges size: " << outgoing_edges.size() << endl;
-            for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
-                if (node_f->parent != nullptr && p_edge->target == node_f->parent->id) 
-                    continue;
-                size_t next_id = p_edge->target;
-                vector<size_t> next_g = node_f->g + p_edge->cost;
-
-                list<HeuristicNodePair> h_list;
-                for (const auto& other_node : open_b) {
-                    vector<size_t> next_h = get_diff_heuristic(next_id, other_node->id);  // f2f
-                    next_h += other_node->g;
-
-                    // Dominance check
-                    if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_f[target]) ||
-                        (next_g[1] >= min_g2_f[next_id])) {
-                        // if (SCREEN)
-                        //     cout << "is dominated in " << next_id << endl;    
-                        continue;
-                    }
-
-                    // Check if the heuristic is dominant
-                    bool need_continue = false;
-                    list<HeuristicNodePair>::iterator h_it = h_list.begin();
-                    while (h_it != h_list.end()) {
-                        if (is_bounded(h_it->first, next_h)) {
-                            h_it = h_list.erase(h_it);
-                        } else if (is_bounded(next_h, h_it->first)) {
-                            need_continue = true;
-                            break;
-                        } else {
-                            ++ h_it;
-                        }
-                    }
-                    if (need_continue) continue;
-                    h_list.emplace_back(next_h, other_node);
-                }
-
-                if (!h_list.empty()) {
-                    // If not dominated create node and push to queue
-                    // Creation is defered after dominance check as it is
-                    // relatively computational heavy and should be avoided if possible
-                    next = make_shared<Node>(next_id, next_g, h_list, node_f, node_f->is_forward);
-                    next->set_path();
-                    open_f.push_back(next);
-                    push_heap(open_f.begin(), open_f.end(), more_than);
-                    num_generation_f +=1;
-                }
-
-                if (SCREEN) {
-                    cout << "\tgenerate node" << endl;
-                    cout << "\t" << *next << endl;
-                }
-            }
-            closed_f.push_back(node_f);  // We fully expand this node, so add to closed list
-            if (SCREEN) {
-                cout << "generation done, open_f.size: " << open_f.size() << ", closed_f.size: "
-                    << closed_f.size() << endl;
-                cout << endl;
+                cout << "\tgenerate node" << endl;
+                cout << "\t" << *next << endl;
             }
         }
+        closed_b.push_back(node_b);  // We fully expand this node, so add to closed list
+        if (SCREEN) {
+            cout << "generation done, open_b.size: " << open_b.size() << ", closed_b.size: "
+                << closed_b.size() << endl;
+            cout << endl;
+        }
+    }
 
-        // Backward search
+    // Begin with forward search
+    if (SCREEN)
+        cout << "Start forward search with open_f size: " << open_f.size() << endl;
+
+    // Update the heuristic for the backward open list given the forward open list
+    for (auto& _node_ : open_f) {
+        list<HeuristicNodePair> tmp_h_list;
+        for (const auto& _other_node_ : open_b) {
+            if (_other_node_->is_cand) continue;
+            vector<size_t> tmp_h = get_diff_heuristic(_node_->id, _other_node_->id);  // f2f
+            tmp_h += _other_node_->g;
+            bool is_b = false;
+            list<HeuristicNodePair>::iterator h_it = tmp_h_list.begin();
+            while (h_it != tmp_h_list.end()) {
+                if (is_bounded(h_it->first, tmp_h)) {
+                    h_it = tmp_h_list.erase(h_it);
+                } else if (is_bounded(tmp_h, h_it->first)) {
+                    is_b = true;
+                    break;
+                } else {
+                    ++ h_it;
+                }
+            }
+
+            if (!is_b) {
+                tmp_h_list.emplace_back(tmp_h, _other_node_);
+                // if (SCREEN) {
+                //     vector<size_t> h1_f = heuristic_f(_node_->id);
+                //     vector<size_t> h1_b = heuristic_b(_node_->id);
+                //     cout << "curr node id: " << _node_->id << endl;
+                //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
+                //         << ", " << h1_b[1] << "]" << endl;
+                //     h1_f = heuristic_f(_other_node_->id);
+                //     h1_b = heuristic_b(_other_node_->id);
+                //     cout << "other node id: " << _other_node_->id << endl;
+                //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
+                //         << ", " << h1_b[1] << "]" << endl;
+                //     cout << "f2f h: [" << tmp_h[0] << ", " << tmp_h[1] << "]" << endl;
+                //     cout << endl;
+                // }
+            }
+        }
+        _node_->set_h_val(tmp_h_list);
+
+        // if (SCREEN) {
+        //     _node_->print_h();
+        //     cout << endl;
+        // }
+    }
+
+    // if (!candidate_sols.empty()) {
+    //     // if (SCREEN) {
+    //     //     cout << "++++++++++++++++++++" << endl;
+    //     //     cout << "Before adding candidate solutions:" << endl;
+    //     //     print_list(open_f, more_than);
+    //     //     cout << "open_f.size() = " << open_f.size() << endl;
+    //     // }
+
+    //     open_f.insert(open_f.end(), candidate_sols.begin(), candidate_sols.end());
+    //     make_heap(open_f.begin(), open_f.end(), more_than);
+
+    //     // if (SCREEN) {
+    //     //     cout << "After adding candidate solutions: " << endl;
+    //     //     print_list(open_f, more_than);
+    //     //     cout << "open_f.size() = " << open_f.size() << endl;
+    //     //     cout << "candidate_sols.size() = " << candidate_sols.size() << endl;
+    //     //     cout << "++++++++++++++++++++" << endl;
+    //     // }
+    // }
+
+    while (!open_f.empty()) {
+        if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
+            this->end_logging(solutions, false);
+            return;
+        }
+
+        // Pop min from queue and process
+        pop_heap(open_f.begin(), open_f.end(), more_than);
+        node_f = open_f.back();
+        open_f.pop_back();
+        // assert(node_f->path.back() == node_f->id);
+
+        // Dominance check
+        // if ((!node_f->is_cand && ((1+this->eps[1])*node_f->f[1]) >= min_g2_f[target]) ||
+        //     (!node_f->is_cand && node_f->g[1] >= min_g2_f[node_f->id]) || 
+        //     (node_f->is_cand && node_f->g[1] >= min_g2_f[target])) {
+        //     reinsert(node_f, open_f, closed_f, more_than);
+        //     continue;
+        // }
+        // if (node_f->is_cand) {
+        //     if (node_f->f[1] >= min_f2) {
+        //         cout << "can_sol is dominant" << endl;
+        //         reinsert(node_f, open_f, closed_f, more_than);
+        //         cout << *node_f << endl;
+        //         continue;
+        //     }
+        // } else if (((1+this->eps[1])*node_f->f[1]) >= min_f2 ||
+        //     (node_f->g[1] >= min_g2_f[node_f->id])) {
+        //     cout << *node_f << endl;
+        //     reinsert(node_f, open_f, closed_f, more_than);
+        //     continue;
+        // }
+
+        if (((1+this->eps[1])*node_f->f[1]) >= min_f2 ||
+            (node_f->g[1] >= min_g2_f[node_f->id])) {
+            cout << *node_f << endl;
+            reinsert(node_f, open_f, closed_f, more_than);
+            continue;
+        }
+
+        // We decide to expand this node
+        // TODO: might need the other heuristics for the pathmax heuristic 
+        // if front to front is too time-consuming
+        if (SCREEN) {
+            cout << "---------------------------------" << endl;
+            cout << "expand node_f" << endl;
+            cout << *node_f << endl;
+            cout << "---------------------------------" << endl;
+        }
+        min_g2_f[node_f->id] = node_f->g[1];
+        num_expansion += 1;
+
+        // Find one solution during the search
+        // if (node_f->is_cand) {
+        //     solutions.push_back(node_f);
+        //     num_sol_front ++;
+        //     log_solution(node_f);
+
+        //     if (SCREEN) {
+        //         cout << "This is a solution!" << endl;
+        //         cout << *node_f;
+        //         cout << endl;
+        //         cout << "----- open_f -----" << endl;
+        //         print_list(open_f, more_than, 3);
+        //     }
+
+        //     // This is a solution found in the previous iterations.
+        //     // Remove it from the candidate solution set
+        //     assert(node_f->h == (size_t) 0);
+        //         // cout << "candidate_sols: " << candidate_sols.size() << endl;
+        //     candidate_sols.erase(remove(candidate_sols.begin(), candidate_sols.end(), node_f), 
+        //         candidate_sols.end());
+        //         // cout << "new candidate_sols: " << candidate_sols.size() << endl;
+
+        //     // Push to the closed list
+        //     min_f2 = node_f->g[1];  // update for global dominance check
+        //     closed_f.push_back(node_f);
+        //     continue;
+        // } else 
+        if (node_f->id == node_f->h_node->id) {
+            // This is a candidate solution, will be checked in the opposite search
+            // Don't need to put in the node to the OPEN
+            NodePtr can_sol = make_shared<Node>(node_f->id, node_f->g + node_f->h_node->g, 
+                vector<size_t>(node_f->g.size(), 0), node_f->parent, true, node_f->h_node, true);
+            can_sol->combine_path();
+            // candidate_sols.push_back(can_sol);
+            solutions.push_back(can_sol);
+            min_f2 = can_sol->g[1];
+            // open_f.push_back(can_sol);
+            // push_heap(open_f.begin(), open_f.end(), more_than);
+
+            if (SCREEN) {
+                cout << "This is a can_sol" << endl;
+                cout << *can_sol;
+                cout << endl;
+                cout << "----- open_f -----" << endl;
+                print_list(open_f, more_than, 3);
+            }
+
+            // Reinsert the node with another heuristic to the open
+            reinsert(node_f, open_f, closed_f, more_than);
+            continue;
+        }
+
+        // Check to which neighbors we should extend the paths
+        const vector<Edge> &outgoing_edges = adj_matrix[node_f->id];
         if (SCREEN)
-            cout << "Start backward search with open_b size: " << open_b.size() << endl;
+            cout << "outgoing_edges size: " << outgoing_edges.size() << endl;
+        for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
+            if (node_f->parent != nullptr && p_edge->target == node_f->parent->id) 
+                continue;
+            size_t next_id = p_edge->target;
+            vector<size_t> next_g = node_f->g + p_edge->cost;
 
-        // Update the heuristic for the backward open list given the forward open list
-        for (auto& _node_ : open_b) {
-            list<HeuristicNodePair> tmp_h_list;
-            for (const auto& _other_node_ : open_f) {
-                if (_other_node_->is_cand) continue;
-                vector<size_t> tmp_h = get_diff_heuristic(_node_->id, _other_node_->id);  // f2f
-                tmp_h += _other_node_->g;
-                bool is_b = false;
-                list<HeuristicNodePair>::iterator h_it = tmp_h_list.begin();
-                while (h_it != tmp_h_list.end()) {
-                    if (is_bounded(h_it->first, tmp_h)) {
-                        h_it = tmp_h_list.erase(h_it);
-                    } else if (is_bounded(tmp_h, h_it->first)) {
-                        is_b = true;
+            list<HeuristicNodePair> h_list;
+            for (const auto& other_node : open_b) {
+                vector<size_t> next_h = get_diff_heuristic(next_id, other_node->id);  // f2f
+                next_h += other_node->g;
+
+                // Dominance check
+                if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_f2) ||
+                    (next_g[1] >= min_g2_f[next_id])) {
+                    // if (SCREEN)
+                    //     cout << "is dominated in " << next_id << endl;    
+                    continue;
+                }
+
+                // Check if the heuristic is dominant
+                bool need_continue = false;
+                list<HeuristicNodePair>::iterator h_it = h_list.begin();
+                while (h_it != h_list.end()) {
+                    if (is_bounded(h_it->first, next_h)) {
+                        h_it = h_list.erase(h_it);
+                    } else if (is_bounded(next_h, h_it->first)) {
+                        need_continue = true;
                         break;
                     } else {
                         ++ h_it;
                     }
                 }
-
-                if (!is_b) {
-                    tmp_h_list.emplace_back(tmp_h, _other_node_);
-                    // if (SCREEN) {
-                    //     vector<size_t> h1_f = heuristic_f(_node_->id);
-                    //     vector<size_t> h1_b = heuristic_b(_node_->id);
-                    //     cout << "curr node id: " << _node_->id << endl;
-                    //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
-                    //         << ", " << h1_b[1] << "]" << endl;
-                    //     h1_f = heuristic_f(_other_node_->id);
-                    //     h1_b = heuristic_b(_other_node_->id);
-                    //     cout << "other node id: " << _other_node_->id << endl;
-                    //     cout << "\th_f: [" << h1_f[0] << ", " << h1_f[1] << "], h_b: [" << h1_b[0] 
-                    //         << ", " << h1_b[1] << "]" << endl;
-                    //     cout << "f2f h: [" << tmp_h[0] << ", " << tmp_h[1] << "]" << endl;
-                    //     cout << endl;
-                    // }
-                }
+                if (need_continue) continue;
+                h_list.emplace_back(next_h, other_node);
             }
-            _node_->set_h_val(tmp_h_list);
+
+            if (!h_list.empty()) {
+                // If not dominated create node and push to queue
+                // Creation is defered after dominance check as it is
+                // relatively computational heavy and should be avoided if possible
+                next = make_shared<Node>(next_id, next_g, h_list, node_f, node_f->is_forward);
+                next->set_path();
+                open_f.push_back(next);
+                push_heap(open_f.begin(), open_f.end(), more_than);
+                num_generation +=1;
+            }
 
             if (SCREEN) {
-                cout << *_node_ << endl;
-                _node_->print_h();
-                // cout << _node_->other_h.size();
-                cout << endl;
+                cout << "\tgenerate node" << endl;
+                cout << "\t" << *next << endl;
             }
         }
-
-        while (!open_b.empty()) {
-            if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
-                this->end_logging(solutions, false);
-                return;
-            } else if (num_expansion_b > lookahead_b) {  // Switch to forward search
-                num_expansion += num_expansion_b;
-                num_generation += num_generation_b;
-                num_expansion_b = 0;
-                num_generation_b = 0;
-
-                if (SCREEN) {
-                    pop_heap(open_b.begin(), open_b.end(), more_than);
-                    NodePtr tmp_node_b = open_b.back();
-                    cout << "\nBackward search end" << endl;
-                    cout << "Current open_b top: " << *tmp_node_b << endl;
-                    cout << "open_b size: " << open_b.size() << endl;
-                    cout << "solutions size: " << solutions.size() << endl;
-                    cout << "candidate_sols size: " << candidate_sols.size() << endl;
-                }
-                break;
-            }
-
-            // Pop min from queue and process
-            std::pop_heap(open_b.begin(), open_b.end(), more_than);
-            node_b = open_b.back();
-            open_b.pop_back();
-            assert(!node_b->is_cand && !node_b->is_forward);
-            // assert(node_b->path.back() == node_b->id);
-
-            if (SCREEN) {
-                cout << "---------------------------------" << endl;
-                cout << "expand node_b" << endl;
-                cout << *node_b << endl;
-                cout << "min_g2_b[source]: " << min_g2_b[source] << endl;
-                cout << "min_g2_b[node_b->id]: " << min_g2_b[node_b->id] << endl;
-                cout << "---------------------------------" << endl;
-            }
-
-            // Dominance check (only local)
-            if (node_b->g[1] >= min_g2_b[node_b->id]) {
-                reinsert(node_b, open_b, closed_b, more_than);
-                continue;
-            }
-
-            // We decide to expand this node
-            // TODO: might need the other heuristics for the pathmax heuristic 
-            // if front to front is too time-consuming
-            min_g2_b[node_b->id] = node_b->g[1];
-            num_expansion_b += 1;
-
-            // Find one solution during the search
-            // Only update the candidate solutions, not the solutions
-            if (node_b->id == node_b->h_node->id) {
-                // This is a candidate solution, will be checked in the opposite search
-                // Don't need to put in the node to the OPEN
-                NodePtr can_sol = make_shared<Node>(node_b->id, node_b->g + node_b->h_node->g, 
-                    vector<size_t>(node_b->g.size(), 0), node_b->parent, false, node_b->h_node, true);
-                can_sol->combine_path();
-                candidate_sols.push_back(can_sol);
-
-                if (SCREEN) {
-                    cout << "This is a can_sol" << endl;
-                    cout << *can_sol;
-                    cout << endl;
-                }
-
-                // Reinsert the node with another heuristic to the open
-                reinsert(node_b, open_b, closed_b, more_than);
-                if (SCREEN) {
-                    cout << "node_b" << endl;
-                    cout << *node_b << endl;
-                    cout << endl;
-                }
-                continue;
-            }
-
-            // Check to which neighbors we should extend the paths
-            const vector<Edge> &outgoing_edges = adj_matrix[node_b->id];
-            if (SCREEN)
-                cout << "outgoing_edges size: " << outgoing_edges.size() << endl;
-            for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
-                if (node_b->parent != nullptr && p_edge->target == node_b->parent->id) 
-                    continue;
-                size_t next_id = p_edge->target;
-                vector<size_t> next_g = node_b->g + p_edge->cost;
-
-                list<HeuristicNodePair> h_list;
-                for (const auto& other_node : open_f) {
-                    vector<size_t> next_h = get_diff_heuristic(next_id, other_node->id);  // f2f
-                    next_h += other_node->g;
-
-                    // Dominance check
-                    if ((((1+this->eps[1])*(next_g[1]+next_h[1])) >= min_g2_b[source]) ||
-                        (next_g[1] >= min_g2_b[next_id])) {
-                        // if (SCREEN)
-                        //     cout << "is dominated in " << next_id << endl;    
-                        continue;
-                    }
-
-                    // Check if the heuristic is dominant
-                    bool need_continue = false;
-                    list<HeuristicNodePair>::iterator h_it = h_list.begin();
-                    while (h_it != h_list.end()) {
-                        if (is_bounded(h_it->first, next_h)) {
-                            h_it = h_list.erase(h_it);
-                        } else if (is_bounded(next_h, h_it->first)) {
-                            need_continue = true;
-                            break;
-                        } else {
-                            ++ h_it;
-                        }
-                    }
-                    if (need_continue) continue;
-                    h_list.emplace_back(next_h, other_node);
-                }
-
-                if (!h_list.empty()) {
-                    // If not dominated create node and push to queue
-                    // Creation is defered after dominance check as it is
-                    // relatively computational heavy and should be avoided if possible
-                    next = make_shared<Node>(next_id, next_g, h_list, node_b, node_b->is_forward);
-                    next->set_path();
-                    open_b.push_back(next);
-                    push_heap(open_b.begin(), open_b.end(), more_than);
-                    num_generation_b +=1;
-                }
-
-                if (SCREEN) {
-                    cout << "\tgenerate node" << endl;
-                    cout << "\t" << *next << endl;
-                    cout << "\tnumber of h: " << next->other_h.size() + 1 << endl; 
-                    // next->print_h();
-                }
-            }
-            closed_b.push_back(node_b);  // We fully expand this node, so add to closed list
-            if (SCREEN) {
-                cout << "generation done, open_b.size: " << open_b.size() << ", closed_b.size: "
-                    << closed_b.size() << endl;
-                cout << endl;
-            }
+        closed_f.push_back(node_f);  // We fully expand this node, so add to closed list
+        if (SCREEN) {
+            cout << "generation done, open_f.size: " << open_f.size() << ", closed_f.size: "
+                << closed_f.size() << endl;
+            cout << endl;
         }
     }
 }

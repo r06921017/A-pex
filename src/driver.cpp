@@ -49,7 +49,7 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
     if (algorithm == "BOPS") {
         std::unique_ptr<BOPS> solver;
         Pair<double> eps_pair({eps, eps});
-        solver = std::make_unique<BOPS>(graph, eps_pair, heuristic, heuristic_b, logger, 1000, 1000);
+        solver = std::make_unique<BOPS>(graph, eps_pair, heuristic, heuristic_b, logger, SIZE_MAX, 2);
         (*solver)(source, target, solutions, time_limit);
         runtime = std::clock() - start;
 
