@@ -30,6 +30,7 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     // Vector to hold mininum cost of 2nd criteria per node
     vector<size_t> min_g2_f(this->adj_matrix.size()+1, MAX_COST);
     vector<size_t> min_g2_b(this->adj_matrix.size()+1, MAX_COST);
+    size_t min_f2 = MAX_COST;
 
     // Init open heap
     Node::more_than_full_cost more_than;
@@ -55,7 +56,7 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     std::push_heap(open_b.begin(), open_b.end(), more_than);
     list<PathGvalPair> open_b_paths = get_paths(open_b);
 
-    while (!open_f.empty()) {
+    while (!open_f.empty() && !open_b.empty()) {
         // Begin with forward search
         if (SCREEN)
             cout << "Start forward search with open_f size: " << open_f.size() << endl;
@@ -107,23 +108,23 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
         }
 
         if (!candidate_sols.empty()) {
-            if (SCREEN) {
-                cout << "++++++++++++++++++++" << endl;
-                cout << "Before adding candidate solutions:" << endl;
-                print_list(open_f, more_than);
-                cout << "open_f.size() = " << open_f.size() << endl;
-            }
+            // if (SCREEN) {
+            //     cout << "++++++++++++++++++++" << endl;
+            //     cout << "Before adding candidate solutions:" << endl;
+            //     print_list(open_f, more_than);
+            //     cout << "open_f.size() = " << open_f.size() << endl;
+            // }
 
             open_f.insert(open_f.end(), candidate_sols.begin(), candidate_sols.end());
             make_heap(open_f.begin(), open_f.end(), more_than);
 
-            if (SCREEN) {
-                cout << "After adding candidate solutions: " << endl;
-                print_list(open_f, more_than);
-                cout << "open_f.size() = " << open_f.size() << endl;
-                cout << "candidate_sols.size() = " << candidate_sols.size() << endl;
-                cout << "++++++++++++++++++++" << endl;
-            }
+            // if (SCREEN) {
+            //     cout << "After adding candidate solutions: " << endl;
+            //     print_list(open_f, more_than);
+            //     cout << "open_f.size() = " << open_f.size() << endl;
+            //     cout << "candidate_sols.size() = " << candidate_sols.size() << endl;
+            //     cout << "++++++++++++++++++++" << endl;
+            // }
         }
 
         while (!open_f.empty()) {
@@ -161,12 +162,16 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
             //     reinsert(node_f, open_f, closed_f, more_than);
             //     continue;
             // }
-            if ((((1+this->eps[1])*node_f->f[1]) >= min_g2_f[target]) ||
-                (node_f->g[1] >= min_g2_f[node_f->id])) {
-                if (node_f->is_cand) {
+            if (node_f->is_cand) {
+                if (node_f->f[1] >= min_f2) {
                     cout << "can_sol is dominant" << endl;
+                    reinsert(node_f, open_f, closed_f, more_than);
                     cout << *node_f << endl;
+                    continue;
                 }
+            } else if (((1+this->eps[1])*node_f->f[1]) >= min_g2_f[target] ||
+                (node_f->g[1] >= min_g2_f[node_f->id])) {
+                cout << *node_f << endl;
                 reinsert(node_f, open_f, closed_f, more_than);
                 continue;
             }
@@ -180,7 +185,6 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
                 cout << *node_f << endl;
                 cout << "---------------------------------" << endl;
             }
-
             min_g2_f[node_f->id] = node_f->g[1];
             num_expansion_f += 1;
 
@@ -207,7 +211,7 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
                     // cout << "new candidate_sols: " << candidate_sols.size() << endl;
 
                 // Push to the closed list
-                min_g2_f[target] = node_f->g[1];  // update for global dominance check
+                min_f2 = node_f->g[1];  // update for global dominance check
                 closed_f.push_back(node_f);
                 continue;
             } else if (node_f->id == node_f->h_node->id) {
@@ -417,8 +421,21 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
             }
 
             // Dominance check
-            if ((((1+this->eps[1])*node_b->f[1]) >= min_g2_b[source]) ||
+            // if ((((1+this->eps[1])*node_b->f[1]) >= min_g2_b[source]) ||
+            //     (node_b->g[1] >= min_g2_b[node_b->id])) {
+            //     reinsert(node_b, open_b, closed_b, more_than);
+            //     continue;
+            // }
+            if (node_b->is_cand) {
+                if (node_b->f[1] >= min_f2) {
+                    cout << "can_sol is dominant" << endl;
+                    reinsert(node_b, open_b, closed_b, more_than);
+                    cout << *node_b << endl;
+                    continue;
+                }
+            } else if (((1+this->eps[1])*node_b->f[1]) >= min_g2_b[source] ||
                 (node_b->g[1] >= min_g2_b[node_b->id])) {
+                cout << *node_b << endl;
                 reinsert(node_b, open_b, closed_b, more_than);
                 continue;
             }
@@ -429,28 +446,77 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
             min_g2_b[node_b->id] = node_b->g[1];
             num_expansion_b += 1;
 
+            // // Find one solution during the search
+            // if (node_b->id == node_b->h_node->id) {
+            //     // This is a candidate solution, will be checked in the opposite search
+            //     // Don't need to put in the node to the OPEN
+            //     NodePtr can_sol = make_shared<Node>(node_b->id, node_b->g + node_b->h_node->g, 
+            //         vector<size_t>(node_b->g.size(), 0), node_b->parent, false, node_b->h_node, true);
+            //     can_sol->combine_path();
+            //     candidate_sols.push_back(can_sol);
+
+            //     if (SCREEN) {
+            //         cout << "This is a can_sol" << endl;
+            //         cout << *can_sol;
+            //         cout << endl;
+            //     }
+
+            //     // Reinsert the node with another heuristic to the open
+            //     reinsert(node_b, open_b, closed_b, more_than);
+            //     if (SCREEN) {
+            //         cout << "node_b" << endl;
+            //         cout << *node_b << endl;
+            //         cout << endl;
+            //     }
+            //     continue;
+            // }
+            
             // Find one solution during the search
-            if (node_b->id == node_b->h_node->id) {
+            if (node_b->is_cand) {
+                solutions.push_back(node_b);
+                num_sol_front ++;
+                log_solution(node_f);
+
+                if (SCREEN) {
+                    cout << "This is a solution!" << endl;
+                    cout << *node_f;
+                    cout << endl;
+                    cout << "----- open_f -----" << endl;
+                    print_list(open_f, more_than, 3);
+                }
+
+                // This is a solution found in the previous iterations.
+                // Remove it from the candidate solution set
+                assert(node_f->h == (size_t) 0);
+                    // cout << "candidate_sols: " << candidate_sols.size() << endl;
+                candidate_sols.erase(remove(candidate_sols.begin(), candidate_sols.end(), node_f), 
+                    candidate_sols.end());
+                    // cout << "new candidate_sols: " << candidate_sols.size() << endl;
+
+                // Push to the closed list
+                min_f2 = node_f->g[1];  // update for global dominance check
+                closed_f.push_back(node_f);
+                continue;
+            } else if (node_f->id == node_f->h_node->id) {
                 // This is a candidate solution, will be checked in the opposite search
                 // Don't need to put in the node to the OPEN
-                NodePtr can_sol = make_shared<Node>(node_b->id, node_b->g + node_b->h_node->g, 
-                    vector<size_t>(node_b->g.size(), 0), node_b->parent, false, node_b->h_node, true);
+                NodePtr can_sol = make_shared<Node>(node_f->id, node_f->g + node_f->h_node->g, 
+                    vector<size_t>(node_f->g.size(), 0), node_f->parent, true, node_f->h_node, true);
                 can_sol->combine_path();
                 candidate_sols.push_back(can_sol);
+                open_f.push_back(can_sol);
+                push_heap(open_f.begin(), open_f.end(), more_than);
 
                 if (SCREEN) {
                     cout << "This is a can_sol" << endl;
                     cout << *can_sol;
                     cout << endl;
+                    cout << "----- open_f -----" << endl;
+                    print_list(open_f, more_than, 3);
                 }
 
                 // Reinsert the node with another heuristic to the open
-                reinsert(node_b, open_b, closed_b, more_than);
-                if (SCREEN) {
-                    cout << "node_b" << endl;
-                    cout << *node_b << endl;
-                    cout << endl;
-                }
+                reinsert(node_f, open_f, closed_f, more_than);
                 continue;
             }
 
