@@ -4,7 +4,7 @@
 
 #include "BOPS.h"
 
-#define SCREEN true
+#define SCREEN false
 
 BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, Heuristic &h_f, Heuristic &h_b,
     const LoggerPtr logger, size_t lh_f, size_t lh_b) : 
@@ -25,7 +25,10 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
     // Saving all the unused NodePtrs in a vector improves performace for some reason
     vector<NodePtr> closed_f;  // forward
     vector<NodePtr> closed_b;  // backward
-    vector<NodePtr> candidate_sols;  // set for the condidate solutions, need to concadinate with either the forward or backward open list
+
+    // set for the condidate solutions, 
+    // need to concadinate with either the forward or backward open list
+    vector<NodePtr> candidate_sols;
 
     // Vector to hold mininum cost of 2nd criteria per node
     vector<size_t> min_g2_f(this->adj_matrix.size()+1, MAX_COST);
@@ -106,7 +109,10 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
         min_g2_b[node_b->id] = node_b->g[1];
         num_expansion_b += 1;
 
-        // // Find one solution during the search
+        // Find one solution during the search
+        if (node_b->id == source) {
+            exit(-1);
+        }
         // // Only update the candidate solutions, not the solutions
         // if (node_b->id == node_b->h_node->id) {
         //     // This is a candidate solution, will be checked in the opposite search
@@ -271,7 +277,7 @@ void BOPS::operator() (size_t source, size_t target, SolutionSet & solutions,
 
         if (((1+this->eps[1])*node_f->f[1]) >= min_f2 ||
             (node_f->g[1] >= min_g2_f[node_f->id])) {
-            cout << *node_f << endl;
+            if (SCREEN) cout << *node_f << endl;
             reinsert(node_f, open_f, closed_f, more_than);
             continue;
         }
@@ -696,9 +702,7 @@ void BOPS::reinsert(NodePtr node, vector<NodePtr>& open, vector<NodePtr>& closed
         node->update_h();
         open.push_back(node);
         push_heap(open.begin(), open.end(), more_than);
-        cout << "push to open" << endl; 
     } else {
         closed.push_back(node);
-        cout << "push to closed" << endl; 
     }
 }
