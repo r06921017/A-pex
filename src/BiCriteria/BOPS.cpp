@@ -257,7 +257,8 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                     continue;
                 }
 
-                // Check if the heuristic is dominant
+                // Check if the heuristic is dominant, either the current heuristic dominant 
+                // one of the existing hueristics or the other way around
                 bool ignore_next_h = false;
                 list<HeuristicNodePair>::iterator h_it = h_list.begin();
                 while (h_it != h_list.end()) {
