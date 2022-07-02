@@ -1,6 +1,7 @@
 #include <memory>
 #include <algorithm>
 #include <time.h>
+#include <iomanip>
 
 #include "BOAStar.h"
 
@@ -57,6 +58,33 @@ void BOAStar::operator()(size_t source, size_t target, Heuristic &heuristic, Sol
         if (node->id == target) {
             solutions.push_back(node);
             log_solution(node);
+
+            // cout << "g value: " << node->g[0] << ", " << node->g[1] << endl;
+            // cout << "f value: " << node->f[0] << ", " << node->f[1] << endl;
+            // NodePtr tmp_n = node;
+            // while (tmp_n->parent != nullptr)
+            // {
+            //     cout << right << setw(5) << tmp_n->id << ",";
+            //     tmp_n = tmp_n->parent;
+            // }
+            // cout << right << setw(5) << source << endl;
+
+            // tmp_n = node;
+            // while (tmp_n->parent != nullptr)
+            // {
+            //     cout << right << setw(5) << tmp_n->g[0] << ",";
+            //     tmp_n = tmp_n->parent;
+            // }
+            // cout << right << setw(5) << 0 << endl;
+
+            // tmp_n = node;
+            // while (tmp_n->parent != nullptr)
+            // {
+            //     cout << right << setw(5) << tmp_n->g[1] << ",";
+            //     tmp_n = tmp_n->parent;
+            // }
+            // cout << right << setw(5) << 0 << endl;
+
             continue;
         }
 

@@ -12,11 +12,12 @@
             "args": [
                 "--map","${workspaceFolder}/resources/dataset/USA-road-d.BAY.gr",
                 "${workspaceFolder}/resources/dataset/USA-road-t.BAY.gr",
-                "--start","1000", 
-                "--goal","1649", 
+                "--start", "20002",  // "1000",
+                "--goal", "164983",  // "1649", 
                 "--algorithm","BOPS",
-                "--cutoffTime", "120",
-                "--output","output.txt"
+                "--cutoffTime", "300",
+                "-f", "4",
+                "--output","output.csv"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

@@ -128,9 +128,23 @@ using EPS = std::vector<double>;
 
 typedef pair<vector<size_t>, const NodePtr> HeuristicNodePair;
 
+struct vector_lex_compare {
+    bool operator() (const vector<size_t>& a, const vector<size_t>& b) const {
+        assert(a.size() == b.size());
+        for (size_t i = 0; (i+1) < a.size(); i ++) {
+            if (a[i] != b[i]) {
+                return a[i] > b[i];
+            }
+        }
+        return a.back() > b.back();
+    }
+};
+
+typedef pairing_heap<vector<size_t>, compare<vector_lex_compare>> vector_heap;
+
 // TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
-    struct lex_compare {
+    struct h_lex_compare {
         bool operator() (const HeuristicNodePair& a, const HeuristicNodePair& b) const {
             assert(a.first.size() == b.first.size());
             for (size_t i = 0; (i+1) < a.first.size(); i ++) {
@@ -149,7 +163,7 @@ struct Node {
     NodePtr parent;
     bool is_forward;
     NodePtr h_node;  // node that lead to the current heuristic h
-    pairing_heap<HeuristicNodePair, compare<lex_compare>> other_h;
+    pairing_heap<HeuristicNodePair, compare<h_lex_compare>> other_h;
     list<size_t> path;  // the path that this node represents
 
     bool is_cand;
@@ -291,7 +305,7 @@ struct Node {
                 cout << ", ";
         }
         cout << "other_h: " << endl;
-        pairing_heap<HeuristicNodePair, compare<lex_compare>> tmp_h(other_h);
+        pairing_heap<HeuristicNodePair, compare<h_lex_compare>> tmp_h(other_h);
         while(!tmp_h.empty()) {
             HeuristicNodePair top_h = tmp_h.top();
             tmp_h.pop();
@@ -392,6 +406,7 @@ typedef boost::heap::priority_queue<NodePtr , boost::heap::compare<Node::compare
 list<PathGvalPair> get_paths(const vector<NodePtr>& in_list);
 PathGvalPair combine_path_pair(const PathGvalPair& a, const PathGvalPair& b, const size_t& target);
 void floyd_warshell(vector<vector<size_t>>& rst, size_t c_idx, const AdjacencyMatrix& adj_matrix);
-void print_list(vector<NodePtr> in_vec, const Node::more_than_full_cost& more_than, size_t num=SIZE_MAX);
+void print_list(vector<NodePtr> in_vec, const Node::more_than_full_cost& more_than, 
+    size_t num=SIZE_MAX,bool tab_space=false);
 
 #endif //UTILS_DEFINITIONS_H

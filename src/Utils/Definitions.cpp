@@ -89,7 +89,7 @@ NodePtr getSource(NodePtr node) {
 AdjacencyMatrix::AdjacencyMatrix(size_t graph_size, std::vector<Edge> &edges, bool inverse)
     : matrix((graph_size+1), std::vector<Edge>()), graph_size(graph_size) {
 
-  num_of_objectives = edges[0].cost.size();
+    num_of_objectives = edges[0].cost.size();
 
     for (auto iter = edges.begin(); iter != edges.end(); ++iter) {
         if (inverse) {
@@ -213,14 +213,15 @@ std::ostream& operator <<(std::ostream &stream, const std::vector<size_t> &vec){
 std::ostream& operator<<(std::ostream &stream, const Node &node) {
     // Printed in JSON format
     std::string parent_id = node.parent == nullptr ? "-1" : std::to_string(node.parent->id);
-    stream
-        << "{"
-        <<      "\"id\": " << node.id << ", "
-        <<      "\"parent\": " << parent_id << ", "
-        <<      "\"cost_until_now\": " << node.g << ", "
-        <<      "\"heuristic_cost\": " << node.h << ", "
-        <<      "\"full_cost\": " << node.f
-        << "}";
+    stream << "{"
+        <<      "id: " << node.id << ", "
+        <<      "parent: " << parent_id << ", "
+        <<      "cost_until_now: " << node.g << ", "
+        <<      "heuristic_cost: " << node.h << ", "
+        <<      "full_cost: " << node.f << ", ";
+    if (node.h_node != nullptr)
+        stream << "h_nid: " << node.h_node->id << ", ";
+    stream << "}";
     return stream;
 }
 
@@ -411,7 +412,8 @@ std::ostream& operator<<(std::ostream& os, const Interval& interval){
   return os;
 }
 
-void print_list(vector<NodePtr> in_queue, const Node::more_than_full_cost& more_than, size_t num) {
+void print_list(vector<NodePtr> in_queue, const Node::more_than_full_cost& more_than, 
+    size_t num, bool tab_space) {
     size_t counter = 0;
     while (!in_queue.empty() && counter < num) {
         // Pop min from queue and process
@@ -419,6 +421,7 @@ void print_list(vector<NodePtr> in_queue, const Node::more_than_full_cost& more_
         NodePtr _node_ = in_queue.back();
         in_queue.pop_back();
         counter ++;
+        if (tab_space) cout << "\t";
         cout << *_node_;
         cout << endl;
     }

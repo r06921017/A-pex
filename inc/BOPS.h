@@ -31,6 +31,7 @@ protected:
     vector<size_t> get_diff_heuristic(size_t loc1, size_t loc2);
     void reinsert(NodePtr node, vector<NodePtr>& open, vector<NodePtr>& closed, 
         const Node::more_than_full_cost& more_than);
+    void print_gcl(const vector<vector_heap>& in_gcl, int id);
 
 public:
     virtual string get_solver_name() {return "BOPS"; }

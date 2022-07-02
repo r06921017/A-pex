@@ -97,7 +97,7 @@ void single_run_map(size_t graph_size, AdjacencyMatrix& graph, AdjacencyMatrix&i
         sol_name << "," << eps << "," << peri_factor << "," << solutions.size() << "," <<
         num_gen << "," << num_gen_f << "," << num_gen_b << "," <<
         num_exp << "," << num_exp_f << "," << num_exp_b << "," <<
-        runtime_pre_h << "," << runtime_node_gen << "," << runtime_update_h << "," <<
+        runtime_pre_process << "," << runtime_pre_h << "," << runtime_node_gen << "," << runtime_update_h << "," <<
         bf_f << "," << bf_b;
 
     output << endl;
@@ -116,7 +116,8 @@ void single_run_map(size_t graph_size, vector<Edge> & edges, size_t source, size
     infile.close();
     if (!exist) {
         ofstream addHeads(output_path + output_file);
-        addHeads << "runtime,source,target,algorithm,eps,factor,#solutions," <<
+        addHeads << "runtime,source,target," << 
+            "algorithm,eps,factor,#solutions," <<
             "#generation,#forward generation,#backward generation," << 
             "#expansion,#forward expansion,#backward expansion," << 
             "runtime preprocess h,runtime build perimeter,runtime node generation,runtime update h," << 
