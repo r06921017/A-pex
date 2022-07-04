@@ -105,11 +105,6 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
         num_expansion ++;
 
         closed_b.push_back(node_b);  // We fully expand this node, so add to closed list
-        if (SCREEN) {
-            cout << "generation done, open_b.size: " << open_b.size() << ", closed_b.size: "
-                << closed_b.size() << endl;
-            cout << endl;
-        }
 
         if (node_b->id == source) {
             // Find one solution during the search (not put into the perimeter)
@@ -147,6 +142,11 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             // Add node_b to the perimeter
             // TODO: Might conside how to sort the node in perimeter
             perimeter.push_back(node_b);
+        }
+        if (SCREEN) {
+            cout << "iteration done, open_b.size: " << open_b.size() << ", closed_b.size: "
+                << closed_b.size() << endl;
+            cout << endl;
         }
     }
     runtime_pre_h += clock() - start_time;  // End the backward search
@@ -315,7 +315,6 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             }
 
             // Update the heuristic for the child node
-            assert(perimeter.size() == tmp_peri_size);
             clock_t update_h_start = clock();
             list<HeuristicNodePair> h_list;
             for (const auto& other_node : perimeter) {

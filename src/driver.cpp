@@ -134,8 +134,23 @@ void single_run_map(size_t graph_size, vector<Edge> & edges, size_t source, size
 
 void run_query(size_t graph_size, vector<Edge> & edges, string query_file, string output_file, 
     string algorithm, MergeStrategy ms, LoggerPtr logger, double eps, size_t peri_factor, int time_limit) {
+
+    ifstream infile(output_path + output_file);
+    bool exist = infile.good();
+    infile.close();
+    if (!exist) {
+        ofstream addHeads(output_path + output_file);
+        addHeads << "runtime,source,target," << 
+            "algorithm,eps,factor,#solutions," <<
+            "#generation,#forward generation,#backward generation," << 
+            "#expansion,#forward expansion,#backward expansion," << 
+            "runtime preprocess h,runtime build perimeter,runtime node generation,runtime update h," << 
+            "#forward branching factor,#backward branching factor";
+        addHeads << endl;
+    }
+
     ofstream stats;
-    stats.open(output_path + output_file, std::fstream::app);
+    stats.open(output_path + output_file, fstream::app);
 
     std::vector<std::pair<size_t, size_t>> queries;
     if (load_queries(query_file, queries) == false) {
@@ -149,7 +164,6 @@ void run_query(size_t graph_size, vector<Edge> & edges, string query_file, strin
 
     size_t query_count = 0;
     for (auto iter = queries.begin(); iter != queries.end(); ++iter) {
-
         query_count++;
         std::cout << "Started Query: " << query_count << "/" << queries.size() << std::endl;
         size_t source = iter->first;
@@ -195,6 +209,7 @@ int main(int argc, char** argv){
     srand((int)time(0));
 
     if (vm["query"].as<std::string>() != ""){
+        cout << "Query file: " << vm["query"].as<std::string>() << endl;
         if (vm["start"].as<int>() != -1 || vm["goal"].as<int>() != -1){
             std::cerr << "query file and start/goal cannot be given at the same time !" << std::endl;
             return -1;
@@ -248,8 +263,8 @@ int main(int argc, char** argv){
     if (vm["query"].as<std::string>() != ""){
         run_query(graph_size, edges, vm["query"].as<std::string>(), vm["output"].as<std::string>(), 
             vm["algorithm"].as<std::string>(), ms, logger, vm["eps"].as<double>(), 
-            vm["factor"].as<uint>(), vm["cutoffTime"].as<uint>());
-    } else{
+            vm["factor"].as<size_t>(), vm["cutoffTime"].as<uint>());
+    } else {
         cout << "factor: " << vm["factor"].as<size_t>() << endl;
         single_run_map(graph_size, edges, vm["start"].as<int>(), vm["goal"].as<int>(), 
             vm["output"].as<std::string>(), vm["algorithm"].as<std::string>(), ms, logger, 
