@@ -4,22 +4,22 @@
 
 #include "BOPS.h"
 
-#define SCREEN false
-
 BOPS::BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, Heuristic &h_f, Heuristic &h_b,
-    const LoggerPtr logger, size_t perimeter_factor) : 
-    BOAStar(adj_matrix, eps, logger), heuristic_f(h_f), heuristic_b(h_b) {
+    double perimeter_factor, uint b_mode, const LoggerPtr logger, uint screen) : 
+    BOAStar(adj_matrix, eps, logger, screen), heuristic_f(h_f), 
+    heuristic_b(h_b), backward_mode(b_mode) {
     set_perimeter_factor(perimeter_factor);
 }
 
 // TODO: only count the 1st element of the front to front heuristic, and count the 2nd if needed
 void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, SolutionSet & solutions,
-    unsigned int time_limit) {
+    uint time_limit) {
 
     // Set the perimeter as the h1 from the target to the source / factor
     vector<size_t> tar_h = heuristic_b(target);
-    if (SCREEN) cout << "heuristic_b(target)[0]" << tar_h.front() << endl;
-    set_perimeter_dist(tar_h[0]/perimeter_factor);
+    set_perimeter_dist((double) tar_h[0] * perimeter_factor);
+    if (screen > DEBUG_LOG_EXPANSION) 
+        cout << "perimeter_dist: " << perimeter_dist << endl;
 
     // Gcl
     bool global_dominance = false, local_dominance = false;
@@ -29,6 +29,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
         g_cl.push_back(tmp_g_close);
     }
 
+    clock_t tmp_start = clock();
     start_time = clock();
     this->start_logging(source, target);
 
@@ -54,46 +55,52 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
     node_f = make_shared<Node>(source, vector<size_t>(2,0), heuristic_f(source), nullptr, true);
     node_f->set_path();
 
-    node_b = make_shared<Node>(target, vector<size_t>(2,0), vector<size_t>(2,0), nullptr, false);
+    if (backward_mode == 0)
+        node_b = make_shared<Node>(target, vector<size_t>(2,0), vector<size_t>(2,0), nullptr, false);
+    else
+        node_b = make_shared<Node>(target, vector<size_t>(2,0), heuristic_b(target), nullptr, false);
     node_b->set_path();
 
     node_f->set_h_node(node_b);
     node_b->set_h_node(node_f);
 
     open_f.push_back(node_f);
-    std::push_heap(open_f.begin(), open_f.end(), more_than);
+    push_heap(open_f.begin(), open_f.end(), more_than);
     list<PathGvalPair> open_f_paths = get_paths(open_f);
 
     open_b.push_back(node_b);
-    std::push_heap(open_b.begin(), open_b.end(), more_than);
+    push_heap(open_b.begin(), open_b.end(), more_than);
     list<PathGvalPair> open_b_paths = get_paths(open_b);
 
     // Generate the perimeter
+    if (screen > DEBUG_LOG_EXPANSION) cout << "Generate perimeter... ";
     while (!open_b.empty()) {
         if ((clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
-            this->end_logging(solutions, false);
+            if (screen > DEBUG_LOG_EXPANSION) this->end_logging(solutions, false);
             return;
         }
 
         // Pop min from queue and process
-        std::pop_heap(open_b.begin(), open_b.end(), more_than);
+        pop_heap(open_b.begin(), open_b.end(), more_than);
         node_b = open_b.back();
         open_b.pop_back();
 
-        if (SCREEN) {
+        if (screen > DEBUG_LOG_DETAILES) {
             assert(node_b->other_h.empty());
-            cout << "---------------------------------" << endl;
-            cout << "expand node_b" << endl;
+            cout << "\n---------------------------------" << endl;
+            cout << "expand node_b ";
             cout << *node_b << endl;
-            cout << "min_g2_b[source]: " << min_g2_b[source] << endl;
-            cout << "min_g2_b[node_b->id]: " << min_g2_b[node_b->id] << endl;
+            if (min_g2_b[source] < SIZE_MAX) 
+                cout << "\tmin_g2_b[source]: " << min_g2_b[source] << endl;
+            if (min_g2_b[node_b->id] < SIZE_MAX) 
+                cout << "\tmin_g2_b[" << node_b->id << "]: " << min_g2_b[node_b->id] << endl;
             cout << "---------------------------------" << endl;
         }
 
-        // Dominance check (only local)
-        // If we are going to use sets of heuristics, then we need to change checking rule
-        if (node_b->g[1] >= min_g2_b[node_b->id]) {
-            reinsert(node_b, open_b, closed_b, more_than);
+        // Dominance check
+        if ((((1+this->eps[1])*node_b->f[1]) >= min_g2_b[source]) ||
+            (node_b->g[1] >= min_g2_b[node_b->id])) {
+            closed_b.push_back(node_b);
             continue;
         }
 
@@ -110,12 +117,12 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             // Find one solution during the search (not put into the perimeter)
             solutions.push_back(node_b);
             num_sol_b ++;
-        } else if (node_b->g[0] < perimeter_dist) {
-            // If g1 of the node_b is smaller than the perimeter_dist, then expand
+        } else if ((double) node_b->f[0] < perimeter_dist) {
+            // If f1 (or g1) of the node_b is smaller than the perimeter_dist, then expand
             // Check to which neighbors we should extend the paths
             const vector<Edge> &outgoing_edges = adj_matrix[node_b->id];
             branching_factor_b += outgoing_edges.size() - 1;
-            if (SCREEN)
+            if (screen > DEBUG_LOG_DETAILES)
                 cout << "outgoing_edges size: " << outgoing_edges.size() << endl;
             for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
                 // Ignore the node we are coming from
@@ -123,17 +130,32 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
 
                 size_t next_id = p_edge->target;
                 vector<size_t> next_g = node_b->g + p_edge->cost;
-                if (next_g[1] >= min_g2_b[next_id]) continue;  // Dominance check
+                vector<size_t> next_h;
+                switch (backward_mode) {
+                case 0:  // BOD
+                    next_h = vector<size_t>(next_g.size(), 0);
+                    break;
+                case 1: // BOA
+                    next_h = heuristic_b(source);
+                    break;
+                default:
+                    exit(-1);
+                    break;
+                }
 
-                next = make_shared<Node>(next_id, next_g, vector<size_t>(next_g.size(), 0), 
-                    node_b, node_b->is_forward);
+                if ((next_g[1]+next_h[1]) >= min_g2_b[source] || next_g[1] >= min_g2_b[next_id]) {
+                    continue;
+                }
+
+                next = make_shared<Node>(next_id, next_g, next_h, node_b, false);
+                next->set_h_node(node_f);
                 next->set_path();
                 open_b.push_back(next);
                 push_heap(open_b.begin(), open_b.end(), more_than);
                 num_generation ++;
                 num_generation_b ++;
 
-                if (SCREEN) {
+                if (screen > DEBUG_LOG_DETAILES) {
                     cout << "\tgenerate node" << endl;
                     cout << "\t" << *next << endl;
                 }
@@ -143,24 +165,21 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             // TODO: Might conside how to sort the node in perimeter
             perimeter.push_back(node_b);
         }
-        if (SCREEN) {
-            cout << "iteration done, open_b.size: " << open_b.size() << ", closed_b.size: "
-                << closed_b.size() << endl;
-            cout << endl;
-        }
     }
     runtime_pre_h += clock() - start_time;  // End the backward search
 
     // Begin with forward search
-    if (SCREEN)
+    if (screen > DEBUG_LOG_EXPANSION)
     {
-        cout << "Start forward search with perimeter size: " << perimeter.size() << endl;
-        cout << "Num of sol from backward: " << solutions.size() << endl;
-        cout << "Update the heuristics for the source" << endl;
+        cout << "done, open_b.size: " << open_b.size() << ", closed_b.size: "
+            << closed_b.size() << ", #sol: " << solutions.size() 
+            << ", perimeter size: " << perimeter.size() << ", f1: " << perimeter[0]->f[0] << endl;
+        cout << "Start forward search... " << endl;
+        cout << "Update the heuristics for the source... " << endl;
     }
 
     // Update the heuristic for the backward open list given the forward open list
-    clock_t tmp_start = clock();
+    tmp_start = clock();
     for (auto& _node_ : open_f) {
         list<HeuristicNodePair> tmp_h_list;
         for (const auto& _p_node_ : perimeter) {
@@ -187,10 +206,11 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
         _node_->set_h_val(tmp_h_list);
     }
     runtime_update_h += clock() - tmp_start;
+    if (screen > DEBUG_LOG_EXPANSION) cout << "done" << endl;
 
     while (!open_f.empty()) {
-        if ((std::clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
-            this->end_logging(solutions, false);
+        if ((clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
+            if (screen > DEBUG_LOG_EXPANSION) this->end_logging(solutions, false);
             return;
         }
 
@@ -199,17 +219,16 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
         node_f = open_f.back();
         open_f.pop_back();
 
-        if (SCREEN) {
-            cout << "Current node: " << *node_f << endl;
+        if (screen > DEBUG_LOG_EXPANSION) {
+            cout << "Current node: " << *node_f;
         }
 
         // Global dominance check, TODO: binary search
+        tmp_start = clock();
         assert(!global_dominance);
         for (const auto& sol : solutions) {
             assert(sol->g[0] == sol->f[0] && sol->g[1] == sol->f[1]);
             if (is_bounded(node_f->f, sol->f)) {
-                if (SCREEN) 
-                    cout << "\tglobal dominant: " << *node_f << endl;
                 reinsert(node_f, open_f, closed_f, more_than);
                 global_dominance = true;
                 break;
@@ -217,17 +236,18 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                 break;
             }
         }
+        runtime_global_check += clock() - tmp_start;
         if (global_dominance) {
             global_dominance = false;
             continue;
         }
 
         // Local dominance check, TODO: binary search
+        tmp_start = clock();
         assert(!local_dominance);
-        if (SCREEN) print_gcl(g_cl, node_f->id);
+        if (screen > DEBUG_LOG_DETAILES) print_gcl(g_cl, node_f->id);
         for (const auto& g_min_val : g_cl[node_f->id]) {
             if (is_bounded(node_f->g, g_min_val)) {
-                if (SCREEN) cout << "\tlocal  dominant: " << *node_f << endl;
                 reinsert(node_f, open_f, closed_f, more_than);
                 local_dominance = true;
                 break;
@@ -235,6 +255,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                 break;
             }
         }
+        runtime_local_check += clock() - tmp_start;
         if (local_dominance) {
             local_dominance = false;
             continue;
@@ -250,17 +271,13 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             // Don't need to put in the node to the OPEN
             NodePtr sol = make_shared<Node>(node_f->id, node_f->g + node_f->h_node->g, 
                 vector<size_t>(node_f->g.size(), 0), node_f->parent, true, node_f->h_node, true);
-            sol->combine_path();
+            // sol->combine_path();
             solutions.push_back(sol);
             num_sol_f ++;
-            // min_f2 = sol->g[1];
 
-            if (SCREEN) {
-                cout << "\tThis is a solution" << endl;
+            if (screen > DEBUG_LOG_EXPANSION) {
+                cout << "is a solution" << endl;
                 cout << "\t" << *sol << endl;
-                cout << "\t----- open_f -----" << endl;
-                print_list(open_f, more_than, 5, true);
-                cout << "\t--- end open_f ---" << endl;
             }
 
             // Reinsert the node with another heuristic to the open
@@ -271,35 +288,30 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
         // We decide to expand this node
         // TODO: might need the other heuristics for the pathmax heuristic 
         // if front to front is too time-consuming
-        if (SCREEN) {
-            cout << "\tExpand" << endl;
-            cout << "\t----- open_f -----" << endl;
-            print_list(open_f, more_than, 5, true);
-            cout << "\t--- end open_f ---" << endl;
-            cout << endl;
-        }
+        if (screen > DEBUG_LOG_EXPANSION) cout << " is expanded" << endl;
         g_cl[node_f->id].push(node_f->g);
-        // if (g_cl[node_f->id].size() > 1)
-        // {
-        //     cout << "\t";
-        //     print_gcl(g_cl, node_f->id);
-        //     cout << endl;
-        // } 
         num_expansion ++;
         num_expansion_f ++;
 
         // Check to which neighbors we should extend the paths
         const vector<Edge> &outgoing_edges = adj_matrix[node_f->id];
         branching_factor_f += outgoing_edges.size() - 1;
-        if (SCREEN)
-            cout << "\t\toutgoing_edges size: " << outgoing_edges.size() << endl;
+        if (screen > DEBUG_LOG_DETAILES)
+            cout << "\toutgoing_edges size: " << outgoing_edges.size() << endl;
         for (auto p_edge = outgoing_edges.begin(); p_edge != outgoing_edges.end(); p_edge++) {
+            if ((clock() - start_time)/CLOCKS_PER_SEC > time_limit) {
+                if (screen > DEBUG_LOG_EXPANSION) this->end_logging(solutions, false);
+                return;
+            }
+
             // Ignore the node we are coming from
             if (node_f->parent != nullptr && p_edge->target == node_f->parent->id) continue;
+            clock_t node_gen_start = clock();
             size_t next_id = p_edge->target;
             vector<size_t> next_g = node_f->g + p_edge->cost;
 
             // Local dominance check
+            tmp_start = clock();
             assert(!local_dominance);
             for (const auto& g_min_val : g_cl[next_id]) {
                 if (is_bounded(next_g, g_min_val)) {
@@ -309,6 +321,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                     break;
                 }
             }
+            runtime_local_check += clock() - tmp_start;
             if (local_dominance) {
                 local_dominance = false;
                 continue;
@@ -319,40 +332,11 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
             list<HeuristicNodePair> h_list;
             for (const auto& other_node : perimeter) {
                 vector<size_t> next_h = get_diff_heuristic(next_id, other_node->id);  // f2f
-
-                // // Debug: check if f2f heuristic is admissible
-                // if (SCREEN && next_id != source) {
-                //     // Generate inverse graph
-                //     vector<Edge> tmp_edges;
-                //     for (size_t v = 0; v < adj_matrix.get_graph_size(); v++) {
-                //         vector<Edge> tmp_tmp_edges = adj_matrix[v+1];
-                //         for (const auto& tmp_tmp_e : tmp_tmp_edges) {
-                //             tmp_edges.push_back(tmp_tmp_e);
-                //         }
-                //     }
-                //     AdjacencyMatrix inv_graph(adj_matrix.get_graph_size(), tmp_edges, true);
-                //     ShortestPathHeuristic sp_heuristic(next_id, adj_matrix.get_graph_size(), inv_graph);
-                //     using std::placeholders::_1;
-                //     Heuristic tmp_tmp_h = bind(&ShortestPathHeuristic::operator(), sp_heuristic, _1);
-                //     vector<size_t> tmp_tmp_h1 = tmp_tmp_h(other_node->id);
-
-                //     cout << "next_h: " << next_h[0] << ", " << next_h[1] << endl;
-                //     cout << "tmp_tmp_h1: " << tmp_tmp_h1[0] << ", " << tmp_tmp_h1[1] << endl;
-                //     cout << endl;
-                //     assert(next_h[0] <= tmp_tmp_h1[0]);
-                //     assert(next_h[1] <= tmp_tmp_h1[1]);
-                // }
-                // // End debug
-
                 next_h += other_node->g;
                 vector<size_t> next_f = next_g + next_h;
 
-                // // Dominance check
-                // if ((next_g[1]+next_h[1]) >= min_f2 || (next_g[1] >= min_g2_f[next_id])) {
-                //     continue;
-                // }
-
                 // Global dominance check
+                tmp_start = clock();
                 assert(!global_dominance);
                 for (const auto& sol : solutions) {
                     assert(sol->g[0] == sol->f[0] && sol->g[1] == sol->f[1]);
@@ -363,6 +347,7 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                         break;
                     }
                 }
+                runtime_global_check += clock() - tmp_start;
                 if (global_dominance) {
                     global_dominance = false;
                     continue;
@@ -391,7 +376,6 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                 // If not dominated create node and push to queue
                 // Creation is defered after dominance check as it is
                 // relatively computational heavy and should be avoided if possible
-                clock_t node_gen_start = clock();
                 next = make_shared<Node>(next_id, next_g, h_list, node_f, node_f->is_forward);
                 next->set_path();
                 open_f.push_back(next);
@@ -400,20 +384,18 @@ void BOPS::operator() (size_t source, size_t target, Heuristic &heuristic, Solut
                 // Statistic analysis
                 num_generation ++;
                 num_generation_f ++;
-                runtime_node_gen += clock() - node_gen_start;
-            
-                if (SCREEN) {
-                    cout << "\tgenerate node" << endl;
-                    cout << "\t" << *next << endl;
-                    // next->print_h();
+
+                if (screen > DEBUG_LOG_EXPANSION) {
+                    cout << "\tgenerate node " << *next << endl;
+                    if (screen > DEBUG_LOG_DETAILES) next->print_h();
                 }
             }
+            runtime_node_gen += clock() - node_gen_start;
         }
         closed_f.push_back(node_f);  // We fully expand this node, so add to closed list
-        if (SCREEN) {
-            cout << "\t\tgeneration done, open_f.size: " << open_f.size() << ", closed_f.size: "
+        if (screen > DEBUG_LOG_DETAILES) {
+            cout << "\tgeneration done, open_f.size: " << open_f.size() << ", closed_f.size: "
                 << closed_f.size() << endl;
-            cout << endl;
         }
     }
 }
@@ -439,7 +421,8 @@ void BOPS::reinsert(NodePtr node, vector<NodePtr>& open, vector<NodePtr>& closed
         node->update_h();
         open.push_back(node);
         push_heap(open.begin(), open.end(), more_than);
-        if (SCREEN)
+        num_reinsert ++;
+        if (screen > DEBUG_LOG_DETAILES)
         {
             cout << "\tReinsert: " << *node << " to OPEN" << endl;
             cout << "\t--- open list after reinseert ---" << endl;
@@ -448,10 +431,8 @@ void BOPS::reinsert(NodePtr node, vector<NodePtr>& open, vector<NodePtr>& closed
         }
     } else {
         closed.push_back(node);
-        if (SCREEN)
-        {
+        if (screen > DEBUG_LOG_DETAILES)
             cout << "Reinsert: " << *node << " to CLOSED" << endl;
-        }
     }
 }
 

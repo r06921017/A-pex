@@ -18,6 +18,9 @@
 #define DEBUG 1
 #endif
 
+#define DEBUG_LOG_EXPANSION 0
+#define DEBUG_LOG_DETAILES 1
+
 using namespace std;
 
 const size_t MAX_COST = std::numeric_limits<size_t>::max();
@@ -142,7 +145,6 @@ struct vector_lex_compare {
 
 typedef pairing_heap<vector<size_t>, compare<vector_lex_compare>> vector_heap;
 
-// TODO: only add a bool variable is_forward to avoid using g_b, h_b, ...
 struct Node {
     struct h_lex_compare {
         bool operator() (const HeuristicNodePair& a, const HeuristicNodePair& b) const {

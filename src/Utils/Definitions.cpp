@@ -216,11 +216,11 @@ std::ostream& operator<<(std::ostream &stream, const Node &node) {
     stream << "{"
         <<      "id: " << node.id << ", "
         <<      "parent: " << parent_id << ", "
-        <<      "cost_until_now: " << node.g << ", "
-        <<      "heuristic_cost: " << node.h << ", "
-        <<      "full_cost: " << node.f << ", ";
+        <<      "g: " << node.g << ", "
+        <<      "h: " << node.h << ", "
+        <<      "f: " << node.f << ", ";
     if (node.h_node != nullptr)
-        stream << "h_nid: " << node.h_node->id << ", ";
+        stream << "h_n: " << node.h_node->id << ", ";
     stream << "}";
     return stream;
 }

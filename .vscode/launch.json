@@ -12,13 +12,15 @@
             "args": [
                 "--map","${workspaceFolder}/resources/dataset/USA-road-d.BAY.gr",
                 "${workspaceFolder}/resources/dataset/USA-road-t.BAY.gr",
-                "-q","${workspaceFolder}/resources/dataset/USA-road-instance.BAY.txt",
-                // "--start", "20002",  // "1000",
-                // "--goal", "164983",  // "1649", 
+                // "-q","${workspaceFolder}/resources/dataset/USA-road-instance.BAY.txt",
+                "--start", "20002",  // "89674",  "1000",
+                "--goal",  "164983", // "261827", "1649",
                 "--algorithm","BOPS",
+                "--backward","0",
                 "--cutoffTime", "60",
-                "-f", "256",
-                "--output","output.csv"
+                "-f", "0.25",
+                "--output","output.csv",
+                "--debug","0"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

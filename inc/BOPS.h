@@ -13,6 +13,7 @@ private:
     Heuristic heuristic_f;
     Heuristic heuristic_b;
     vector<NodePtr> perimeter;
+    uint backward_mode=0;
 
 protected:
     std::clock_t start_time;
@@ -37,10 +38,11 @@ public:
     virtual string get_solver_name() {return "BOPS"; }
 
     BOPS(const AdjacencyMatrix &adj_matrix, Pair<double> eps, Heuristic &h_f, Heuristic &h_b, 
-        const LoggerPtr logger=nullptr, size_t perimeter_factor=2);
+        double perimeter_factor=2.0, uint b_mode=0, 
+        const LoggerPtr logger=nullptr, uint screen=0);
 
     void operator()(size_t source, size_t target, Heuristic &heuristic, SolutionSet & solutions, 
-        unsigned int time_limit);
+        uint time_limit=UINT_MAX);
 
     vector<pair<clock_t, NodePtr>> get_sol_log(){return solution_log;}
 };
